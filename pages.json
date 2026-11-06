@@ -1,0 +1,151 @@
+{
+	"pages": [
+		{
+			"path": "pages/splash/splash",
+			"style": {
+				"navigationStyle": "custom",
+				"app-plus": { "animationType": "fade-in" }
+			}
+		},
+		{
+			"path": "pages/guide/guide",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationStyle": "custom",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/records/records",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/memory/create",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/archive",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/mine/mine",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/memory/edit",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/memory/detail",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/search/search",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/stage",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/highlight",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/compare",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/wander",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/mine/profile",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/mine/settings",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/mine/backup",
+			"style": {
+				"navigationBarTitleText": "数据备份",
+				"navigationBarBackgroundColor": "#F7F1E3",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/mine/privacy",
+			"style": {
+				"navigationBarTitleText": "隐私设置",
+				"navigationBarBackgroundColor": "#F7F1E3",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/mine/calendar",
+			"style": {
+				"navigationBarTitleText": "日历回看",
+				"navigationBarBackgroundColor": "#F7F1E3",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/mine/export",
+			"style": {
+				"navigationBarTitleText": "导出回忆录",
+				"navigationBarBackgroundColor": "#F7F1E3",
+				"navigationBarTextStyle": "black"
+			}
+		},
+		{
+			"path": "pages/mine/about",
+			"style": {
+				"navigationBarTitleText": "关于",
+				"navigationBarBackgroundColor": "#F7F1E3",
+				"navigationBarTextStyle": "black"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "时光印记",
+		"navigationBarBackgroundColor": "#F7F1E3",
+		"backgroundColor": "#F7F1E3"
+	},
+	"easycom": {
+		"autoscan": true
+	}
+}

@@ -1,0 +1,60 @@
+/**
+ * 时光印纪 全局样式变量(按《时光印记 UI 设计图》视觉规范提取)
+ * 暖米白 × 青绿 × 暖橙 · 大圆角卡片 · 扁平插画
+ */
+
+/* ==================== 颜色规范 ==================== */
+$ti-primary: #4F8B8B;        // 主色 青绿
+$ti-primary-deep: #3E7373;   // 主色深
+$ti-primary-light: #DCEBEA;  // 主色浅底(标签/选中底)
+$ti-primary-mist: #EDF3F1;   // 主色雾底
+$ti-accent: #F0995A;         // 辅助色 暖橙
+$ti-accent-deep: #E88B45;    // 辅助色深
+$ti-accent-light: #FAE8D2;   // 辅助色浅底
+$ti-blue: #587CA0;           // 引导页按钮 蓝灰
+$ti-navy: #1B3B57;           // 标题藏蓝
+$ti-bg: #F7F1E3;             // 页面背景 暖米白
+$ti-bg-soft: #FBF7EC;        // 更浅背景
+$ti-card: #FFFFFF;           // 卡片背景
+$ti-text: #1B3B57;           // 主要文字 藏蓝
+$ti-text-2: #4A5560;         // 次要文字
+$ti-text-3: #9FA6AC;         // 占位文字
+$ti-line: #EFE9DC;           // 分割线
+$ti-disabled: #D8D2C2;       // 禁用状态
+$ti-success: #7BA88E;        // 成功/柔和绿
+$ti-danger: #D96A5B;         // 柔和红(删除)
+
+/* uni 基础变量映射 */
+$uni-color-primary: $ti-primary;
+$uni-text-color: $ti-text;
+$uni-text-color-grey: $ti-text-2;
+$uni-bg-color: $ti-bg;
+
+/* ==================== 字体规范 ==================== */
+$font-title: 40rpx;    // 大标题 Bold 20px
+$font-sub: 32rpx;      // 副标题 Medium 16px
+$font-body: 28rpx;     // 正文 Regular 14px
+$font-small: 24rpx;    // 辅助小字 Light 12px
+
+/* ==================== 圆角规范(设计图为大圆角语言) ==================== */
+$radius-btn: 999rpx;   // 按钮 胶囊
+$radius-card: 48rpx;   // 卡片 24px
+$radius-input: 40rpx;  // 输入框 20px
+$radius-img: 32rpx;    // 图片 16px
+$radius-tag: 20rpx;    // 标签 10px
+$radius-modal: 48rpx;  // 弹窗 24px
+
+/* ==================== 间距规范 ==================== */
+$page-pad: 32rpx;      // 页面外边距 16px
+$card-pad: 36rpx;      // 卡片内边距 18px
+$gap-sm: 16rpx;        // 小组件间距 8px
+$gap-title: 24rpx;     // 标题与内容间距 12px
+$gap-lg: 48rpx;        // 模块之间间距 24px
+$height-btn: 108rpx;   // 按钮高度 54px
+$height-input: 96rpx;  // 输入框高度 48px
+
+/* ==================== 阴影 ==================== */
+$shadow-card: 0 10rpx 30rpx rgba(27, 59, 87, 0.08);
+$shadow-float: 0 14rpx 36rpx rgba(27, 59, 87, 0.14);
+$shadow-primary: 0 12rpx 26rpx rgba(79, 139, 139, 0.35);
+$shadow-accent: 0 12rpx 26rpx rgba(240, 153, 90, 0.35);
