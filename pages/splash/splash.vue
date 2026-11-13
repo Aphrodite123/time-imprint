@@ -27,9 +27,8 @@
 </template>
 
 <script>
-	// 闪屏页:首次使用跳引导页,非首次回到上次退出页面
+	// 闪屏页:首次使用跳引导页,之后固定进入首页
 	const GUIDE_KEY = 'ti_guide_done'
-	const LAST_KEY = 'ti_last_route'
 
 	export default {
 		data() {
@@ -50,24 +49,17 @@
 						this.go('/pages/guide/guide')
 						return
 					}
-					const last = uni.getStorageSync(LAST_KEY)
-					if (typeof last === 'string' && last && !last.startsWith('/pages/splash')) {
-						// 目标页失效时回退到首页
-						this.go(last, '/pages/index/index')
-					} else {
-						this.go('/pages/index/index')
-					}
+					this.go('/pages/index/index')
 				} catch (e) {
 					this.go('/pages/index/index')
 				}
 			},
-			// 带兜底的跳转:失败时清理失效路由并回退,避免卡在闪屏页
+			// 带兜底的跳转:失败时回退,避免卡在闪屏页
 			go(url, fallback) {
 				uni.reLaunch({
 					url,
 					fail: () => {
 						if (fallback) {
-							try { uni.removeStorageSync(LAST_KEY) } catch (e) {}
 							this.go(fallback)
 						} else {
 							uni.showToast({ title: '页面加载失败，请重试', icon: 'none' })
