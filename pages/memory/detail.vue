@@ -19,9 +19,9 @@
 						<view class="dt-dot"></view>
 						<text class="dt-tag-text teal">{{ emotion.label }}</text>
 					</view>
-					<view v-if="memory.lifeStage" class="dt-tag-item">
+					<view v-if="stageLabel" class="dt-tag-item">
 						<image class="dt-pin" src="/static/entries/stage.png" mode="aspectFit" />
-						<text class="dt-tag-text teal">{{ memory.lifeStage }}</text>
+						<text class="dt-tag-text teal">{{ stageLabel }}</text>
 					</view>
 					<view v-if="memory.isHighlight" class="dt-tag-item">
 						<text class="dt-star">★</text>
@@ -29,10 +29,10 @@
 					</view>
 				</view>
 
-				<text v-if="memory.title" class="dt-title">{{ memory.title }}</text>
+					<text v-if="showTitle" class="dt-title">{{ memory.title }}</text>
 				<text v-if="memory.content" class="dt-content">{{ memory.content }}</text>
 				<media-grid v-if="medias.length" :medias="medias" :max-images="9" class="dt-media" />
-				<voice-bar v-if="voice" :src="voice.url" :duration="voice.duration" class="dt-voice" />
+					<voice-bar v-for="(v, i) in voices" :key="i" :src="v.url" :duration="v.duration" class="dt-voice" />
 			</view>
 
 			<!-- 操作按钮 -->
@@ -49,7 +49,8 @@
 	import { getMemory, deleteMemory } from '../../utils/db'
 	import { removeFile } from '../../utils/media'
 	import { fmtCN } from '../../utils/date'
-	import { emotionOf } from '../../utils/stage'
+	import { emotionOf, stageLabelOf } from '../../utils/stage'
+	import { store } from '../../store'
 
 	export default {
 		data() {
@@ -61,11 +62,24 @@
 			medias() {
 				return (this.memory && this.memory.medias) || []
 			},
-			voice() {
-				return this.medias.find(m => m.type === 'voice') || null
+			voices() {
+				return this.medias.filter(m => m.type === 'voice')
+			},
+			// 标题与正文是同一句话(内容以标题开头)时不再重复展示标题
+			showTitle() {
+				const t = (this.memory && this.memory.title) || ''
+				if (!t) return false
+				const c = (this.memory && this.memory.content) || ''
+				return !c.startsWith(t)
 			},
 			emotion() {
 				return this.memory ? emotionOf(this.memory.emotion) : null
+			},
+			// 展示用人生阶段: 出生前的印记统一显示「未出生」
+			stageLabel() {
+				if (!this.memory) return ''
+				const birth = store.user && store.user.birthDate
+				return stageLabelOf(birth, this.memory.eventDate, this.memory.lifeStage)
 			}
 		},
 		onLoad(opt) {
@@ -144,17 +158,25 @@
 		box-shadow: $shadow-float;
 	}
 	.dt-head {
+		position: relative;
+		height: 42rpx;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 	}
 	.dt-date {
 		font-size: 30rpx;
+		line-height: 42rpx;
 		font-weight: 800;
 		color: $ti-navy;
 	}
 	.dt-hl-link {
+		position: absolute;
+		right: 0;
+		top: 50%;
+		transform: translateY(-50%);
 		font-size: $font-small;
+		line-height: 42rpx;
 		font-weight: 600;
 		color: $ti-text-3;
 	}

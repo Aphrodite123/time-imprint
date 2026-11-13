@@ -123,4 +123,37 @@
 		font-size: 26rpx;
 		color: #9FA6AC;
 	}
+
+	/* ==================== 导航栏工具行(nav-bar #tools 插槽通用) ==================== */
+	/* 顶部工具按钮统一放在 .nb-tools-group 内横排; 布局位置(同行/标题下方)由 nav-bar 自适应决定 */
+	.nb-tools-group {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 24rpx;
+	}
+	.nb-tool {
+		position: relative;
+		width: 64rpx;
+		height: 64rpx;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.nb-tool image {
+		width: 44rpx;
+		height: 44rpx;
+	}
+	/* 铃铛右上角橙点提醒 */
+	.nb-tool-dot {
+		position: absolute;
+		top: 2rpx;
+		right: 2rpx;
+		width: 14rpx;
+		height: 14rpx;
+		border-radius: 50%;
+		background: #F0995A;
+		border: 3rpx solid #F7F1E3;
+		box-sizing: border-box;
+	}
 </style>

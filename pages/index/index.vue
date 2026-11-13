@@ -1,38 +1,51 @@
 <template>
 	<view class="idx">
-		<!-- 顶部导航 -->
-		<view class="idx-nav" :style="{ paddingTop: statusBarHeight + 'px' }">
-			<view class="idx-nav-row">
-				<text class="idx-title">时光印记</text>
-				<view class="idx-nav-icons">
-					<picker v-if="years.length" mode="selector" :range="yearOptions" @change="onYearChange">
-						<view class="idx-year">{{ year || '年份' }} ▾</view>
-					</picker>
-					<image class="idx-icon-img" src="/static/icon-search.png" @click="goSearch" />
-					<image class="idx-icon-img" src="/static/icon-bell.png" @click="onNotify" />
-				</view>
-			</view>
+	<!-- 导航栏(组件内固定吸顶), 外层用于实测导航占位高度 -->
+		<view class="idx-nav">
+			<nav-bar title="时光印记" :back="false" @height="onNavHeight">
+				<template #tools>
+					<view class="nb-tools-group">
+						<picker v-if="years.length" mode="selector" :range="yearOptions" @change="onYearChange">
+							<view class="idx-year">{{ year || '全部年份' }} ▾</view>
+						</picker>
+						<view class="nb-tool" @click="goSearch">
+							<image src="/static/icon-search.png" mode="aspectFit" />
+						</view>
+						<view class="nb-tool" @click="onNotify">
+							<!-- 图标资产自带橙点, 无需再叠加 CSS 圆点 -->
+							<image src="/static/icon-bell.png" mode="aspectFit" />
+						</view>
+					</view>
+				</template>
+			</nav-bar>
 		</view>
 
-		<!-- 个人信息行 -->
-		<view class="idx-profile" @click="goProfile">
+		<!-- 个人信息行: 固定在导航栏下方, 不随页面滚动 -->
+		<view class="idx-profile" :style="{ top: navH + 'px' }" @click="goProfile">
 			<image class="idx-avatar" :src="avatarUrl" mode="aspectFill" />
 			<view class="idx-profile-info">
 				<view class="idx-profile-row">
 					<text class="idx-nickname">{{ nickname }}</text>
-					<text v-if="myAge !== null" class="idx-age">{{ myAge }}岁</text>
+					<text v-if="myAgeLabel" class="idx-age">{{ myAgeLabel }}</text>
 				</view>
 				<text class="idx-status">{{ statusText }}</text>
 			</view>
 		</view>
+		<!-- 文档流占位: 高度与固定个人信息行一致 -->
+		<view class="idx-profile-ph" :style="{ height: profileH + 'px' }"></view>
 
-		<!-- 双列时间轴:左年龄胶囊 + 右内容卡 -->
+		<!-- 双列时间轴: 年龄正序排列, 默认定位到「今天」(左年龄胶囊 + 右内容卡) -->
 		<view class="idx-timeline" v-if="renderList.length">
-			<view v-for="(node, i) in renderList" :key="i" class="tl-row">
+			<view
+				v-for="(node, i) in renderList"
+				:key="i"
+				:id="node.type === 'today' ? 'tl-today' : ''"
+				class="tl-row"
+			>
 				<!-- 左侧年龄胶囊列 -->
 				<view class="tl-rail">
 					<view v-if="node.type === 'today'" class="tl-pill now-dash">
-						{{ myAge !== null ? myAge + '岁' : '今天' }}
+						{{ myAgeLabel || '今天' }}
 					</view>
 					<view
 						v-else-if="node.type === 'mark'"
@@ -50,22 +63,33 @@
 				</view>
 				<!-- 右侧内容列 -->
 				<view class="tl-content">
-					<!-- 今日一签 -->
-					<view v-if="node.type === 'today'" class="tl-quote">
-						<view class="tl-quote-head">
-							<text class="tl-quote-mark">❝</text>
-							<text class="tl-quote-title">今日一签</text>
-							<text class="tl-quote-date">{{ todayCN }}</text>
+					<!-- 今天: 有当天印记则展示用户自己的印记(替换今日一签), 没有则展示默认今日一签 -->
+					<template v-if="node.type === 'today'">
+						<view v-if="!node.memories || !node.memories.length" class="tl-quote">
+							<view class="tl-quote-head">
+								<text class="tl-quote-mark">❝</text>
+								<text class="tl-quote-title">今日一签</text>
+								<text class="tl-quote-date">{{ todayCN }}</text>
+							</view>
+							<text class="tl-quote-text">把日子过成值得被记住的样子，慢慢来，反而比较快。</text>
+							<text class="tl-quote-tag">今天也值得被记住</text>
 						</view>
-						<text class="tl-quote-text">把日子过成值得被记住的样子，慢慢来，反而比较快。</text>
-						<text class="tl-quote-tag">今天也值得被记住</text>
-					</view>
+						<memory-card
+							v-for="m in node.memories"
+							:key="m.memoryId"
+							:memory="m"
+							@click="goDetail"
+							@longpress="onLongpress"
+							@more="onLongpress"
+						/>
+					</template>
 					<!-- 印记卡片 -->
 					<memory-card
 						v-else-if="node.type === 'card'"
 						:memory="node.memory"
 						@click="goDetail"
 						@longpress="onLongpress"
+						@more="onLongpress"
 					/>
 					<!-- 未记录占位 -->
 					<view v-else-if="node.type === 'placeholder'" class="tl-placeholder">
@@ -73,7 +97,7 @@
 					</view>
 				</view>
 			</view>
-			<view class="tl-loading">{{ loading ? '加载中...' : hasMore ? '上滑回溯更久远的时光' : '已经回到故事的开端' }}</view>
+			<view class="tl-loading">{{ loading ? '加载中...' : hasMore ? '上滑加载更多时光' : '已经到最新的时光啦' }}</view>
 		</view>
 
 		<!-- 空状态 -->
@@ -98,7 +122,8 @@
 	import { listMemories, deleteMemory, setHighlight, updateMemory } from '../../utils/db'
 	import { removeFile } from '../../utils/media'
 	import { calcAge, fmtCN, today } from '../../utils/date'
-	import { AGE_MARKS, FUTURE_STAGE } from '../../utils/stage'
+	import { AGE_MARKS, FUTURE_STAGE, UNBORN_STAGE } from '../../utils/stage'
+	import { getNavMetrics } from '../../utils/nav'
 	import { store, loadUser } from '../../store'
 
 	const PAGE_SIZE = 20
@@ -106,14 +131,15 @@
 	export default {
 		data() {
 			return {
-				statusBarHeight: 20,
 				memories: [],
 				renderList: [],
 				year: '',
 				years: [],
 				loading: false,
 				hasMore: true,
-				myAge: null
+				myAge: null,
+				navH: 0, // 固定导航栏高度(px), 个人信息行吸顶定位用
+				profileH: 0 // 固定个人信息行高度(px), 文档流占位用
 			}
 		},
 		computed: {
@@ -131,6 +157,11 @@
 				for (const m of AGE_MARKS) if (m <= this.myAge) cur = m
 				return cur
 			},
+			// 当前年龄文案: 出生前(生日在未来)统一显示「未出生」
+			myAgeLabel() {
+				if (this.myAge === null) return null
+				return this.myAge < 0 ? UNBORN_STAGE.label : this.myAge + '岁'
+			},
 			avatarUrl() {
 				return (store.user && store.user.avatar) || '/static/logo.png'
 			},
@@ -142,9 +173,17 @@
 				return store.user.status || '今天也值得被记住'
 			}
 		},
-		onLoad() {
-			const sys = uni.getSystemInfoSync()
-			this.statusBarHeight = sys.statusBarHeight || 20
+		created() {
+			// 个人信息行吸顶 top 的初始估算(挂载后实测校正): 状态栏 + 标题行
+			const nav = getNavMetrics()
+			const rowH = nav.rightInset > 0 && nav.capsuleHeight > 0
+				? (nav.capsuleTop - nav.statusBarHeight) * 2 + nav.capsuleHeight
+				: uni.upx2px(96)
+			this.navH = nav.statusBarHeight + rowH
+			this.profileH = uni.upx2px(140)
+		},
+		mounted() {
+			this.measureHeader()
 		},
 		onShow() {
 			this.reload()
@@ -153,12 +192,29 @@
 			this.loadMore()
 		},
 		methods: {
+			// 实测固定个人信息行高度, 供文档流占位使用; 导航栏高度由 nav-bar 的 height 事件推送
+			measureHeader() {
+				this.$nextTick(() => {
+					const q = uni.createSelectorQuery().in(this)
+					q.select('.idx-profile').boundingClientRect()
+					q.exec(res => {
+						const rect = res && res[0]
+						if (rect && rect.height) this.profileH = rect.height
+					})
+				})
+			},
+			onNavHeight(h) {
+				this.navH = h
+			},
 			isFutureMark(node) {
-				return this.myAge !== null && node.age !== null && node.age > this.myAge
+				// 档位无年龄(未来计划)或档位年龄大于当前年龄, 均视为未来(暖色样式)
+				return this.myAge !== null && (node.age === null || node.age > this.myAge)
 			},
 			async reload() {
 				if (!store.ready) await loadUser()
 				this.myAge = store.user && store.user.birthDate ? calcAge(store.user.birthDate) : null
+				// 昵称/签名等档案信息就位后复测固定头高度
+				this.measureHeader()
 				await this.refreshYears()
 				this.memories = []
 				this.hasMore = true
@@ -185,6 +241,11 @@
 					this.memories = this.memories.concat(rows)
 					this.hasMore = rows.length >= PAGE_SIZE
 					this.buildRenderList()
+					// 首屏渲染完成后默认定位到「今天」
+					if (!this._scrolled && this.renderList.length) {
+						this._scrolled = true
+						this.scrollToToday()
+					}
 				} finally {
 					this.loading = false
 				}
@@ -192,42 +253,92 @@
 			loadMore() {
 				this.loadPage()
 			},
-			// 构建渲染结构:今日一签 / 年龄分割线 / 空区间占位 / 印记卡片
+			// 构建渲染结构(年龄正序): 过往印记升序 → 今天 → 未来印记。
+			// 今天节点: 仅在「全部年份」或选中年份为当前年份时展示; 当天有印记则展示用户自己的印记(替换今日一签), 没有则展示默认今日一签
 			buildRenderList() {
 				const birth = store.user && store.user.birthDate
-				const list = [{ type: 'today' }]
-				let lastMarkIdx = -1
-				for (const m of this.memories) {
-					const age = birth ? calcAge(birth, m.eventDate) : null
-					if (age !== null && age < 0) {
-						// 未来日期:归入「未来计划」
-						if (lastMarkIdx < AGE_MARKS.length) {
-							list.push({ type: 'mark', label: FUTURE_STAGE.label, age: null })
-							lastMarkIdx = AGE_MARKS.length
-						}
-						list.push({ type: 'card', memory: m })
-						continue
-					}
-					if (age === null) {
-						// 未设置出生日期:直接展示卡片
-						list.push({ type: 'card', memory: m })
-						continue
-					}
-					let curIdx = -1
+				const todayStr = today()
+				// 年份筛选含今天(「全部年份」或选中的是当前年份)才展示今天节点, 否则只展示所选年份的印记
+				const showToday = !this.year || this.year === todayStr.slice(0, 4)
+				// 当前年龄所处的档位(用于在今天节点前补齐年龄刻度)
+				let todayIdx = -1
+				if (this.myAge !== null && this.myAge >= 0) {
 					for (let i = 0; i < AGE_MARKS.length; i++) {
-						if (AGE_MARKS[i] <= age) curIdx = i
+						if (AGE_MARKS[i] <= this.myAge) todayIdx = i
 					}
-					for (let j = lastMarkIdx + 1; j <= curIdx; j++) {
+				}
+				const list = []
+				let lastMarkIdx = -1
+				let futureMarkPushed = false
+				let unbornMarkPushed = false
+				let todayPushed = false
+				const pushToday = () => {
+					if (todayPushed || !showToday) return
+					todayPushed = true
+					// 今天节点前补齐未跨过的年龄刻度: 不含今天所在档位(由今天的虚线年龄胶囊表达, 避免重复)
+					for (let j = lastMarkIdx + 1; j < todayIdx; j++) {
 						list.push({ type: 'mark', label: `${AGE_MARKS[j]}岁`, age: AGE_MARKS[j] })
-						// 分割线与下一条记录之间无记录的区间,插入灰色占位
-						if (j < curIdx) {
-							list.push({ type: 'placeholder', from: AGE_MARKS[j], to: AGE_MARKS[j + 1] })
-						}
 					}
-					lastMarkIdx = Math.max(lastMarkIdx, curIdx)
+					// 紧邻的档位胶囊若与今天年龄相同(如 0 岁宝宝), 移除重复刻度
+					if (this.myAge !== null && list.length && list[list.length - 1].type === 'mark') {
+						const last = list[list.length - 1]
+						if (last.label === this.myAgeLabel) list.pop()
+					}
+					if (todayIdx > lastMarkIdx) lastMarkIdx = todayIdx
+					list.push({ type: 'today', memories: this.memories.filter(m => m.eventDate === todayStr) })
+				}
+				for (const m of this.memories) {
+					if (m.eventDate === todayStr) continue // 今天的印记已在今天节点展示
+					if (m.eventDate > todayStr && !todayPushed) pushToday()
+					const age = birth ? calcAge(birth, m.eventDate) : null
+					if (age !== null && age >= 0) {
+						let curIdx = -1
+						for (let i = 0; i < AGE_MARKS.length; i++) {
+							if (AGE_MARKS[i] <= age) curIdx = i
+						}
+						for (let j = lastMarkIdx + 1; j <= curIdx; j++) {
+							list.push({ type: 'mark', label: `${AGE_MARKS[j]}岁`, age: AGE_MARKS[j] })
+							// 分割线与下一条记录之间无记录的区间,插入灰色占位
+							if (j < curIdx) {
+								list.push({ type: 'placeholder', from: AGE_MARKS[j], to: AGE_MARKS[j + 1] })
+							}
+						}
+						if (curIdx > lastMarkIdx) lastMarkIdx = curIdx
+					} else if (age !== null && age < 0) {
+						// 出生前的印记: 统一归入「未出生」档
+						if (!unbornMarkPushed) {
+							list.push({ type: 'mark', label: UNBORN_STAGE.label, age: null })
+							unbornMarkPushed = true
+						}
+					} else if (m.eventDate > todayStr && !futureMarkPushed) {
+						// 未填写出生日期的未来印记: 归入「未来计划」档
+						list.push({ type: 'mark', label: FUTURE_STAGE.label, age: null })
+						futureMarkPushed = true
+					}
 					list.push({ type: 'card', memory: m })
 				}
+				if (!todayPushed) pushToday()
 				this.renderList = list
+			},
+			// 默认定位到「今天」节点(仅首屏执行一次)
+			scrollToToday() {
+				this.$nextTick(() => {
+					setTimeout(() => {
+						const query = uni.createSelectorQuery()
+						query.select('#tl-today').boundingClientRect()
+						query.selectViewport().scrollOffset()
+						query.exec(res => {
+							const rect = res && res[0]
+							const vp = res && res[1]
+							if (!rect || !vp) return
+							const offset = this.navH + this.profileH
+							uni.pageScrollTo({
+								scrollTop: Math.max(vp.scrollTop + rect.top - (offset > 0 ? offset + 8 : 110), 0),
+								duration: false
+							})
+						})
+					}, 300)
+				})
 			},
 			onYearChange(e) {
 				const idx = Number(e.detail.value)
@@ -299,27 +410,7 @@
 	.idx {
 		min-height: 100vh;
 		background: $ti-bg;
-		padding-bottom: 260rpx;
-	}
-	.idx-nav {
-		background: $ti-bg;
-	}
-	.idx-nav-row {
-		height: 96rpx;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 0 $page-pad;
-	}
-	.idx-title {
-		font-size: 48rpx;
-		font-weight: 800;
-		color: $ti-navy;
-	}
-	.idx-nav-icons {
-		display: flex;
-		align-items: center;
-		gap: 24rpx;
+		padding-bottom: 200rpx;
 	}
 	.idx-year {
 		font-size: $font-small;
@@ -327,19 +418,28 @@
 		color: $ti-text-2;
 		background: #FFFFFF;
 		border-radius: 999rpx;
-		padding: 8rpx 22rpx;
+		padding: 10rpx 24rpx;
 		box-shadow: 0 2rpx 8rpx rgba(27, 59, 87, 0.05);
 	}
-	.idx-icon-img {
-		width: 44rpx;
-		height: 44rpx;
+
+	.idx-nav {
+		width: 100%;
 	}
 
 	.idx-profile {
+		position: fixed;
+		left: 0;
+		right: 0;
+		z-index: 900; /* 与导航栏同层: 吸顶不随页面滚动, 背景不透明遮住滚过的内容 */
+		background: $ti-bg;
 		display: flex;
 		align-items: center;
 		gap: 24rpx;
-		padding: 16rpx $page-pad 0;
+		padding: 16rpx $page-pad 12rpx;
+		box-sizing: border-box;
+	}
+	.idx-profile-ph {
+		width: 100%;
 	}
 	.idx-avatar {
 		width: 104rpx;
@@ -377,10 +477,11 @@
 	}
 
 	/* ============ 双列时间轴 ============ */
+	/* 时间轴: 紧跟固定头之后, 顶部仅留少量间距 */
 	.idx-timeline {
 		display: flex;
 		flex-direction: column;
-		padding: 28rpx $page-pad 0;
+		padding: 8rpx $page-pad 0;
 	}
 	.tl-row {
 		display: flex;

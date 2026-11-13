@@ -1,21 +1,20 @@
 <template>
-	<view class="tb-wrap">
-		<view class="tb-bar">
-			<view class="tb-item" v-for="t in items.slice(0, 2)" :key="t.key" @click="go(t)">
-				<image class="tb-icon" :src="current === t.key ? t.on : t.off" mode="aspectFit" />
-				<text :class="['tb-label', current === t.key ? 'on' : '']">{{ t.label }}</text>
-			</view>
-			<view class="tb-add" @click="goCreate">新增印记</view>
-			<view class="tb-item" v-for="t in items.slice(2)" :key="t.key" @click="go(t)">
-				<image class="tb-icon" :src="current === t.key ? t.on : t.off" mode="aspectFit" />
-				<text :class="['tb-label', current === t.key ? 'on' : '']">{{ t.label }}</text>
-			</view>
+	<view class="tb-bar">
+		<view class="tb-item" v-for="t in items.slice(0, 2)" :key="t.key" @click="go(t)">
+			<image class="tb-icon" :src="current === t.key ? t.on : t.off" mode="aspectFit" />
+			<text :class="['tb-label', current === t.key ? 'on' : '']">{{ t.label }}</text>
+		</view>
+		<view class="tb-add" @click="goCreate">新增印记</view>
+		<view class="tb-item" v-for="t in items.slice(2)" :key="t.key" @click="go(t)">
+			<image class="tb-icon" :src="current === t.key ? t.on : t.off" mode="aspectFit" />
+			<text :class="['tb-label', current === t.key ? 'on' : '']">{{ t.label }}</text>
 		</view>
 	</view>
 </template>
 
 <script>
-	// 自定义悬浮胶囊 TabBar(首页/记录/新增印记/档案馆/我的)
+	// 通栏停靠式 TabBar(首页/记录/新增印记/档案馆/我的)
+	// 不透明底 + 顶部细分割线,内容不会从栏体后穿透,避免视觉重叠错觉
 	export default {
 		name: 'tab-bar',
 		props: {
@@ -44,50 +43,53 @@
 </script>
 
 <style lang="scss" scoped>
-	.tb-wrap {
-		position: fixed;
-		left: 32rpx;
-		right: 32rpx;
-		bottom: calc(44rpx + env(safe-area-inset-bottom));
-		z-index: 100;
-	}
 	.tb-bar {
-		height: 148rpx;
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 100;
+		height: 128rpx;
+		box-sizing: content-box;
+		padding: 0 40rpx calc(4rpx + env(safe-area-inset-bottom));
 		background: #FFFFFF;
-		border-radius: 999rpx;
-		box-shadow: $shadow-float;
+		border-top: 1rpx solid #EFE8D7;
+		border-radius: 26rpx 26rpx 0 0;
+		box-shadow: 0 -10rpx 30rpx rgba(27, 59, 87, 0.06);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0 44rpx;
 	}
 	.tb-item {
+		flex: 1;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 6rpx;
-		width: 96rpx;
+		gap: 5rpx;
 	}
 	.tb-icon {
-		width: 48rpx;
-		height: 48rpx;
+		width: 46rpx;
+		height: 46rpx;
 	}
 	.tb-label {
-		font-size: 22rpx;
+		font-size: 21rpx;
 		font-weight: 600;
 		color: $ti-text-3;
 	}
 	.tb-label.on {
 		color: $ti-primary;
+		font-weight: 700;
 	}
 	.tb-add {
+		height: 92rpx;
+		line-height: 92rpx;
+		padding: 0 42rpx;
+		border-radius: 999rpx;
 		background: linear-gradient(135deg, #579292 0%, #4A8282 100%);
 		color: #FFFFFF;
-		font-size: 30rpx;
+		font-size: 28rpx;
 		font-weight: 800;
 		letter-spacing: 2rpx;
-		padding: 30rpx 42rpx;
-		border-radius: 52rpx;
 		box-shadow: $shadow-primary;
 		white-space: nowrap;
 	}

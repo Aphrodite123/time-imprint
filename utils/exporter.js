@@ -3,7 +3,7 @@
  */
 
 import { fmtCN } from './date'
-import { emotionOf } from './stage'
+import { emotionOf, stageLabelOf } from './stage'
 
 /**
  * 将全部记忆按时间线组装为回忆录文本
@@ -22,7 +22,9 @@ export function buildMemoir(user, memories) {
 		lines.push(fmtCN(m.eventDate))
 		const emo = emotionOf(m.emotion)
 		const tags = []
-		if (m.lifeStage) tags.push(m.lifeStage)
+		// 出生前的印记统一写「未出生」
+		const stage = stageLabelOf(user && user.birthDate, m.eventDate, m.lifeStage)
+		if (stage) tags.push(stage)
 		if (emo) tags.push(emo.label)
 		if (m.isHighlight) tags.push('★ 高光时刻')
 		if (tags.length) lines.push(`[${tags.join(' | ')}]`)

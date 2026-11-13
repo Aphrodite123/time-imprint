@@ -36,7 +36,7 @@
 <script>
 	// 日历回看:按日期回看记忆(P2)
 	import { listMemories, listMemoriesByRange } from '../../utils/db'
-	import { monthMatrix, fmtCN, fmtDate } from '../../utils/date'
+	import { monthMatrix, fmtCN, fmtDate, today } from '../../utils/date'
 
 	export default {
 		data() {
@@ -47,7 +47,7 @@
 				month: now.getMonth() + 1,
 				cells: [],
 				markSet: {}, // 'YYYY-MM-DD' -> true
-				selected: '',
+				selected: today(), // 进入页面默认选中当天
 				dayMemories: []
 			}
 		},
@@ -58,6 +58,7 @@
 		},
 		onShow() {
 			this.loadMarks()
+			this.loadSelected()
 		},
 		methods: {
 			async loadMarks() {
@@ -90,7 +91,11 @@
 			},
 			async selectDay(d) {
 				this.selected = this.dayStr(d)
-				// 当日全部记录(含归档),带媒体供卡片展示
+				await this.loadSelected()
+			},
+			// 当日全部记录(含归档),带媒体供卡片展示
+			async loadSelected() {
+				if (!this.selected) return
 				this.dayMemories = await listMemoriesByRange(this.selected, this.selected)
 			},
 			goDetail(m) {

@@ -1,17 +1,16 @@
 <template>
 	<view class="ar">
-		<!-- 顶部 -->
-		<view class="ar-nav" :style="{ paddingTop: statusBarHeight + 'px' }">
-			<view class="ar-nav-row">
-				<text class="ar-back" @click="goMine">←</text>
-				<image class="ar-bell" src="/static/icon-bell.png" @click="onNotify" />
-			</view>
-		</view>
-
-		<view class="ar-head">
-			<text class="ar-title">成长档案馆</text>
-			<text class="ar-sub">看见自己的变化</text>
-		</view>
+		<!-- 顶部: 标题居中(Tab 页无返回键), 副标题居中, 铃铛工具移到标题下方 -->
+		<nav-bar title="成长档案馆" :back="false" subtitle="看见自己的变化">
+			<template #tools>
+				<view class="nb-tools-group">
+					<view class="nb-tool" @click="onNotify">
+						<!-- 图标资产自带橙点, 无需再叠加 CSS 圆点 -->
+						<image src="/static/icon-bell.png" mode="aspectFit" />
+					</view>
+				</view>
+			</template>
+		</nav-bar>
 
 		<!-- 成长快照统计卡 -->
 		<view class="ar-snapshot" @click="goCalendar">
@@ -56,7 +55,12 @@
 
 		<!-- 情绪柔和曲线 -->
 		<view class="ar-chart" v-if="chartData.length">
+			<!-- #ifdef MP-WEIXIN -->
 			<canvas id="emotionChart" type="2d" class="ar-chart-canvas"></canvas>
+			<!-- #endif -->
+			<!-- #ifndef MP-WEIXIN -->
+			<canvas id="emotionChart" canvas-id="emotionChart" class="ar-chart-canvas"></canvas>
+			<!-- #endif -->
 			<view class="ar-chart-axis">
 				<text v-for="d in chartData" :key="d.key" class="ar-chart-axis-label">{{ d.label }}</text>
 			</view>
@@ -100,14 +104,15 @@
 
 <script>
 	// 成长档案馆:快照统计 + 情绪图表 + 功能入口(需求 2.5)
-	import { getStats } from '../../utils/db'
+	import { getStats, listMemories } from '../../utils/db'
 	import { EMOTIONS } from '../../utils/stage'
+	import { today } from '../../utils/date'
 
 	export default {
 		data() {
 			return {
-				statusBarHeight: 20,
-				stats: { total: 0, images: 0, voices: 0, emotions: {} }
+				stats: { total: 0, images: 0, voices: 0, emotions: {} },
+				currentEmotion: '' // 当前情绪状态(今天最新一条带情绪的印记), 无则不画状态圆点
 			}
 		},
 		computed: {
@@ -115,17 +120,13 @@
 				return Object.values(this.stats.emotions).reduce((s, n) => s + n, 0)
 			},
 			chartData() {
-				// 有记录的情绪才参与图表
-				return EMOTIONS.filter(e => this.stats.emotions[e.key]).map(e => ({
+				// 始终绘制全部情绪(数量为 0 的也参与), 避免数据少时曲线退化成孤点
+				return EMOTIONS.map(e => ({
 					key: e.key,
 					label: e.label,
 					count: this.stats.emotions[e.key] || 0
 				}))
 			}
-		},
-		onLoad() {
-			const sys = uni.getSystemInfoSync()
-			this.statusBarHeight = sys.statusBarHeight || 20
 		},
 		onShow() {
 			this.load()
@@ -133,16 +134,29 @@
 		methods: {
 			async load() {
 				this.stats = await getStats()
+				this.currentEmotion = await this.latestEmotion()
 				this.$nextTick(() => this.drawChart())
 			},
-			// 柔和曲线:各情绪数量分布(暖橙面积 + 青绿描边 + 峰值圆点)
+			// 当前情绪状态: 今天最新一条带情绪的印记; 今天没有则无当前状态(圆点不显示)
+			async latestEmotion() {
+				const todayStr = today()
+				const rows = await listMemories({ offset: 0, limit: 9999, noMedia: true })
+				for (let i = rows.length - 1; i >= 0; i--) {
+					if (rows[i].eventDate === todayStr && rows[i].emotion) return rows[i].emotion
+				}
+				return ''
+			},
+			// 柔和曲线:各情绪数量分布(暖橙面积 + 青绿描边 + 当前状态圆点)
 			drawChart() {
 				const data = this.chartData
 				if (!data.length) return
+				// #ifdef MP-WEIXIN
+				// 小程序: canvas 2d node 方式
 				const query = uni.createSelectorQuery().in(this)
 				query.select('#emotionChart').fields({ node: true, size: true }).exec(res => {
-					if (!res[0]) return
-					const canvas = res[0].node
+					const canvas = res && res[0] && res[0].node
+					// App 端拿不到原生 canvas, 由下方旧版接口分支处理
+					if (!canvas || !canvas.getContext) return
 					const dpr = uni.getSystemInfoSync().pixelRatio || 2
 					const width = res[0].width
 					const height = res[0].height
@@ -150,63 +164,85 @@
 					canvas.height = height * dpr
 					const ctx = canvas.getContext('2d')
 					ctx.scale(dpr, dpr)
-
-					const max = Math.max(...data.map(d => d.count))
-					const padX = 10
-					const padTop = 16
-					const padBottom = 8
-					const n = data.length
-					const stepX = (width - padX * 2) / (n - 1 || 1)
-					const chartH = height - padTop - padBottom
-					const pts = data.map((d, i) => ({
-						x: padX + stepX * i,
-						y: padTop + chartH - (d.count / max) * chartH * 0.82
-					}))
-
-					// 平滑贝塞尔曲线绘制函数
-					const traceCurve = () => {
-						ctx.moveTo(pts[0].x, pts[0].y)
-						for (let i = 1; i < pts.length; i++) {
-							const cx = (pts[i - 1].x + pts[i].x) / 2
-							ctx.bezierCurveTo(cx, pts[i - 1].y, cx, pts[i].y, pts[i].x, pts[i].y)
-						}
-					}
-
-					// 面积填充
-					const grad = ctx.createLinearGradient(0, padTop, 0, height)
-					grad.addColorStop(0, 'rgba(240, 153, 90, 0.55)')
-					grad.addColorStop(1, 'rgba(240, 153, 90, 0.02)')
-					ctx.beginPath()
-					traceCurve()
-					ctx.lineTo(pts[pts.length - 1].x, height - padBottom)
-					ctx.lineTo(pts[0].x, height - padBottom)
-					ctx.closePath()
-					ctx.fillStyle = grad
-					ctx.fill()
-
-					// 曲线描边
-					ctx.beginPath()
-					traceCurve()
-					ctx.strokeStyle = '#4F8B8B'
-					ctx.lineWidth = 3
-					ctx.stroke()
-
-					// 峰值点
-					const peak = pts.reduce((a, b) => (b.y < a.y ? b : a), pts[0])
-					ctx.beginPath()
-					ctx.arc(peak.x, peak.y, 6, 0, Math.PI * 2)
-					ctx.fillStyle = '#FFFFFF'
-					ctx.fill()
-					ctx.strokeStyle = '#E88B45'
-					ctx.lineWidth = 3.5
-					ctx.stroke()
+					this.paintChart(ctx, width, height, data, false)
 				})
+				// #endif
+				// #ifndef MP-WEIXIN
+				// App/H5: type=2d 的 node 查询拿不到原生 canvas, 走兼容性最好的旧版 canvas 接口
+				const ctx = uni.createCanvasContext('emotionChart', this)
+				const query = uni.createSelectorQuery().in(this)
+				query.select('#emotionChart').boundingClientRect()
+				query.exec(res => {
+					const rect = res && res[0]
+					if (!rect || !rect.width) return
+					this.paintChart(ctx, rect.width, rect.height, data, true)
+				})
+				// #endif
+			},
+			// 曲线绘制主体(两套 canvas 接口通用); legacy=true 为旧版接口: 颜色需 setXxx 方法, 结束需 draw() 提交
+			paintChart(ctx, width, height, data, legacy) {
+				const setFill = v => (legacy ? ctx.setFillStyle(v) : (ctx.fillStyle = v))
+				const setStroke = v => (legacy ? ctx.setStrokeStyle(v) : (ctx.strokeStyle = v))
+				const setLineWidth = v => (legacy ? ctx.setLineWidth(v) : (ctx.lineWidth = v))
+
+				// 最大值兜底为 1: 全部情绪都是 0 时避免除零产生 NaN
+				const max = Math.max(1, ...data.map(d => d.count))
+				const padX = 10
+				const padTop = 16
+				const padBottom = 8
+				const n = data.length
+				const stepX = (width - padX * 2) / (n - 1 || 1)
+				const chartH = height - padTop - padBottom
+				const pts = data.map((d, i) => ({
+					x: padX + stepX * i,
+					y: padTop + chartH - (d.count / max) * chartH * 0.82
+				}))
+
+				// 平滑贝塞尔曲线绘制函数
+				const traceCurve = () => {
+					ctx.moveTo(pts[0].x, pts[0].y)
+					for (let i = 1; i < pts.length; i++) {
+						const cx = (pts[i - 1].x + pts[i].x) / 2
+						ctx.bezierCurveTo(cx, pts[i - 1].y, cx, pts[i].y, pts[i].x, pts[i].y)
+					}
+				}
+
+				// 面积填充
+				const grad = ctx.createLinearGradient(0, padTop, 0, height)
+				grad.addColorStop(0, 'rgba(240, 153, 90, 0.55)')
+				grad.addColorStop(1, 'rgba(240, 153, 90, 0.02)')
+				ctx.beginPath()
+				traceCurve()
+				ctx.lineTo(pts[pts.length - 1].x, height - padBottom)
+				ctx.lineTo(pts[0].x, height - padBottom)
+				ctx.closePath()
+				setFill(grad)
+				ctx.fill()
+
+				// 曲线描边
+				ctx.beginPath()
+				traceCurve()
+				setStroke('#4F8B8B')
+				setLineWidth(3)
+				ctx.stroke()
+
+				// 当前状态圆点: 落在最近一次记录的情绪上, 没有当前状态则不显示
+				const curIdx = data.findIndex(d => d.key === this.currentEmotion)
+				const cur = curIdx > -1 ? pts[curIdx] : null
+				if (cur) {
+					ctx.beginPath()
+					ctx.arc(cur.x, cur.y, 6, 0, Math.PI * 2)
+					setFill('#FFFFFF')
+					ctx.fill()
+					setStroke('#E88B45')
+					setLineWidth(3.5)
+					ctx.stroke()
+				}
+
+				if (legacy) ctx.draw()
 			},
 			onNotify() {
 				uni.showToast({ title: '这里安静而安全,没有打扰', icon: 'none' })
-			},
-			goMine() {
-				uni.reLaunch({ url: '/pages/mine/mine' })
 			},
 			goCalendar() {
 				uni.navigateTo({ url: '/pages/mine/calendar' })
@@ -222,44 +258,8 @@
 	.ar {
 		min-height: 100vh;
 		background: $ti-bg;
-		padding-bottom: 260rpx;
+		padding-bottom: 200rpx;
 	}
-	.ar-nav {
-		background: $ti-bg;
-	}
-	.ar-nav-row {
-		height: 88rpx;
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 0 $page-pad;
-	}
-	.ar-back {
-		font-size: 44rpx;
-		font-weight: 700;
-		color: #1B1B1B;
-		padding: 0 8rpx;
-	}
-	.ar-bell {
-		width: 44rpx;
-		height: 44rpx;
-	}
-	.ar-head {
-		padding: 8rpx $page-pad 0;
-	}
-	.ar-title {
-		display: block;
-		font-size: 52rpx;
-		font-weight: 800;
-		color: $ti-navy;
-	}
-	.ar-sub {
-		display: block;
-		margin-top: 10rpx;
-		font-size: 26rpx;
-		color: $ti-text-3;
-	}
-
 	/* 统计卡 */
 	.ar-snapshot {
 		margin: 32rpx $page-pad 0;

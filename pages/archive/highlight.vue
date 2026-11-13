@@ -1,8 +1,13 @@
 <template>
 	<view class="hl">
-		<nav-bar title="高光回忆集">
-			<template #right>
-				<text class="hl-nav-star">★</text>
+		<!-- 顶部: 返回靠左 + 标题居中, 副标题居中, 星标点缀移到标题下方 -->
+		<nav-bar title="高光回忆集" subtitle="那些闪闪发光的日子">
+			<template #tools>
+				<view class="nb-tools-group">
+					<view class="nb-tool">
+						<image src="/static/icon-star-line.png" mode="aspectFit" />
+					</view>
+				</view>
 			</template>
 		</nav-bar>
 
@@ -128,12 +133,8 @@
 		min-height: 100vh;
 		background: $ti-bg;
 	}
-	.hl-nav-star {
-		font-size: 40rpx;
-		color: $ti-accent;
-	}
 	.hl-body {
-		padding: 20rpx $page-pad calc(64rpx + env(safe-area-inset-bottom));
+		padding: 12rpx $page-pad calc(64rpx + env(safe-area-inset-bottom));
 	}
 
 	/* 精选高光 */
