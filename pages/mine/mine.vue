@@ -1,10 +1,15 @@
 <template>
 	<view class="mn">
-		<!-- 顶部标题 + 设置入口 -->
-		<view class="mn-nav" :style="{ paddingTop: statusBarHeight + 'px' }">
-			<text class="mn-title">我的</text>
-			<image class="mn-gear" src="/static/icon-settings.png" @click="goSettings" />
-		</view>
+		<!-- 顶部: 标题居中, 设置工具移到标题下方(避让小程序右上角胶囊) -->
+		<nav-bar title="我的" :back="false">
+			<template #tools>
+				<view class="nb-tools-group">
+					<view class="nb-tool" @click="goSettings">
+						<image src="/static/icon-settings.png" mode="aspectFit" />
+					</view>
+				</view>
+			</template>
+		</nav-bar>
 
 		<!-- 个人资料卡 -->
 		<view class="mn-profile" @click="goProfile">
@@ -89,7 +94,6 @@
 	export default {
 		data() {
 			return {
-				statusBarHeight: 20,
 				stats: { total: 0, images: 0, voices: 0 },
 				streak: 0,
 				menus: [
@@ -118,14 +122,11 @@
 				const s = myStage(this.user.birthDate)
 				const names = {
 					infant: '婴儿时期', child: '幼年', childhood: '童年', teen: '少年',
-					youth: '青年奋斗', middle: '中年岁月', elder: '暮年时光', future: '未来计划'
+					youth: '青年奋斗', middle: '中年岁月', elder: '暮年时光',
+					unborn: '未出生', future: '未来计划'
 				}
 				return (this.user.status || '今天也值得被记住') + (s ? ` · ${names[s.key] || s.label}` : '')
 			}
-		},
-		onLoad() {
-			const sys = uni.getSystemInfoSync()
-			this.statusBarHeight = sys.statusBarHeight || 20
 		},
 		onShow() {
 			this.load()
@@ -178,24 +179,8 @@
 	.mn {
 		min-height: 100vh;
 		background: $ti-bg;
-		padding-bottom: 260rpx;
+		padding-bottom: 200rpx;
 	}
-	.mn-nav {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 16rpx $page-pad 0;
-	}
-	.mn-title {
-		font-size: 52rpx;
-		font-weight: 800;
-		color: $ti-navy;
-	}
-	.mn-gear {
-		width: 48rpx;
-		height: 48rpx;
-	}
-
 	/* 资料卡 */
 	.mn-profile {
 		margin: 32rpx $page-pad 0;

@@ -11,18 +11,19 @@
 				@click.stop="preview(i)"
 			/>
 		</view>
-		<!-- 视频封面 -->
-		<view v-if="video && showVideo" class="mg-video" @click.stop="playVideo">
+		<!-- 视频列表(支持多个): 封面/首帧 + 角标, 点击原地播放 -->
+		<view v-for="(v, i) in videoList" :key="'v' + i" class="mg-video" @click.stop="playVideo(v)">
 			<video
-				v-if="playing"
-				:src="video.url"
+				v-if="playing === v.url"
+				:src="v.url"
 				class="mg-video-player"
 				controls
 				autoplay
 				object-fit="contain"
 			></video>
 			<block v-else>
-				<image :src="video.thumbnailUrl || video.url" mode="aspectFill" class="mg-video-cover" />
+				<image v-if="v.thumbnailUrl" :src="v.thumbnailUrl" mode="aspectFill" class="mg-video-cover" />
+				<view v-else class="mg-video-cover mg-video-dark"></view>
 				<view class="mg-video-badge">▶</view>
 			</block>
 		</view>
@@ -30,7 +31,7 @@
 </template>
 
 <script>
-	// 媒体网格:图片九宫格 + 视频(卡片模式下封面+角标,点击内嵌播放)
+	// 媒体网格: 图片九宫格 + 视频列表(封面+角标, 点击原地播放)
 	export default {
 		name: 'media-grid',
 		props: {
@@ -38,25 +39,25 @@
 			maxImages: { type: Number, default: 9 } // 卡片场景限制 3 张,详情展示全部
 		},
 		data() {
-			return { playing: false }
+			return { playing: '' } // 正在内嵌播放的视频 url
 		},
 		computed: {
 			imageList() {
 				return this.medias.filter(m => m.type === 'image').map(m => m.url).slice(0, this.maxImages)
 			},
-			video() {
-				return this.medias.find(m => m.type === 'video') || null
+			videoList() {
+				return this.medias.filter(m => m.type === 'video')
 			},
 			showVideo() {
-				return !!(this.video && this.maxImages > 3)
+				return !!(this.videoList.length && this.maxImages > 3)
 			}
 		},
 		methods: {
 			preview(i) {
 				uni.previewImage({ urls: this.imageList, current: i })
 			},
-			playVideo() {
-				this.playing = true
+			playVideo(v) {
+				this.playing = v.url
 			}
 		}
 	}
@@ -84,30 +85,32 @@
 		margin-top: 12rpx;
 		border-radius: $radius-img;
 		overflow: hidden;
-
-		.mg-video-cover {
-			width: 100%;
-			height: 360rpx;
-			display: block;
-			background: $ti-bg;
-		}
-		.mg-video-badge {
-			position: absolute;
-			left: 50%;
-			top: 50%;
-			transform: translate(-50%, -50%);
-			width: 80rpx;
-			height: 80rpx;
-			line-height: 80rpx;
-			text-align: center;
-			border-radius: 50%;
-			background: rgba(0, 0, 0, 0.45);
-			color: #FFFFFF;
-			font-size: 28rpx;
-		}
-		.mg-video-player {
-			width: 100%;
-			height: 400rpx;
-		}
+	}
+	.mg-video-cover {
+		width: 100%;
+		height: 360rpx;
+		display: block;
+		background: #26394B;
+	}
+	.mg-video-dark {
+		background: linear-gradient(150deg, #3E566C, #26394B);
+	}
+	.mg-video-badge {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		width: 80rpx;
+		height: 80rpx;
+		line-height: 80rpx;
+		text-align: center;
+		border-radius: 50%;
+		background: rgba(0, 0, 0, 0.45);
+		color: #FFFFFF;
+		font-size: 28rpx;
+	}
+	.mg-video-player {
+		width: 100%;
+		height: 400rpx;
 	}
 </style>

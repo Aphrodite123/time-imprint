@@ -8,6 +8,20 @@
 			</view>
 		</picker>
 
+		<!-- 标题: 可手动填写, 不填默认取正文首行 -->
+		<view class="mf-card">
+			<view class="mf-title-row">
+				<text class="mf-title-label">标题</text>
+				<input
+					v-model="title"
+					class="mf-title-input"
+					placeholder="可不填,默认取正文首行"
+					placeholder-class="mf-placeholder"
+					maxlength="20"
+				/>
+			</view>
+		</view>
+
 		<!-- 正文输入 -->
 		<view class="mf-card mf-content-card">
 			<textarea
@@ -23,25 +37,25 @@
 		<!-- 多媒体工具栏 -->
 		<view class="mf-toolbar">
 			<view class="mf-tool" @click="addImages">
-				<view class="mf-tool-tile white">
+				<view class="mf-tool-tile mist-teal">
 					<image class="mf-tool-icon" src="/static/tools/image.png" mode="aspectFit" />
 				</view>
 				<text class="mf-tool-label">图片</text>
 			</view>
 			<view class="mf-tool" @click="addVideo">
-				<view class="mf-tool-tile orange">
+				<view class="mf-tool-tile mist-orange">
 					<image class="mf-tool-icon" src="/static/tools/video.png" mode="aspectFit" />
 				</view>
 				<text class="mf-tool-label">视频</text>
 			</view>
 			<view class="mf-tool" @click="onVoiceTool">
-				<view class="mf-tool-tile teal">
+				<view class="mf-tool-tile deep-teal">
 					<image class="mf-tool-icon" src="/static/tools/voice.png" mode="aspectFit" />
 				</view>
 				<text class="mf-tool-label">语音</text>
 			</view>
 			<view class="mf-tool" @click="emotionVisible = true">
-				<view class="mf-tool-tile teal">
+				<view class="mf-tool-tile deep-orange">
 					<image class="mf-tool-icon" src="/static/tools/smile.png" mode="aspectFit" />
 				</view>
 				<text class="mf-tool-label">表情</text>
@@ -57,13 +71,15 @@
 				</view>
 			</view>
 		</view>
-		<view v-if="video" class="mf-card mf-row-card">
-			<text class="mf-row-text">🎬 视频已添加</text>
-			<text class="mf-row-del" @click="removeVideo">删除</text>
+		<!-- 视频列表(支持多个) -->
+		<view v-for="(v, i) in videos" :key="v.url" class="mf-card mf-row-card">
+			<text class="mf-row-text">🎬 视频 {{ i + 1 }} 已添加</text>
+			<text class="mf-row-del" @click="removeVideo(i)">删除</text>
 		</view>
-		<view v-if="voice" class="mf-card mf-row-card">
-			<voice-bar :src="voice.url" :duration="voice.duration" class="mf-voice-bar" />
-			<text class="mf-row-del" @click="removeVoice">删除</text>
+		<!-- 语音列表(支持多条) -->
+		<view v-for="(v, i) in voices" :key="v.url" class="mf-card mf-row-card">
+			<voice-bar :src="v.url" :duration="v.duration" class="mf-voice-bar" />
+			<text class="mf-row-del" @click="removeVoice(i)">删除</text>
 		</view>
 		<view v-if="emotion" class="mf-card mf-row-card">
 			<text class="mf-emotion-emoji">{{ emotionOf(emotion).emoji }}</text>
@@ -76,10 +92,11 @@
 			<text class="mf-section-title">人生阶段</text>
 			<text class="mf-section-tip">{{ stageManual ? '已手动选择' : '根据日期自动推算' }}</text>
 		</view>
-		<scroll-view scroll-x class="mf-stage-scroll">
+		<scroll-view scroll-x class="mf-stage-scroll" :scroll-into-view="stageAnchor" scroll-with-animation>
 			<view
-				v-for="s in stageOptions"
+				v-for="(s, i) in stageOptions"
 				:key="s"
+				:id="'stage-opt-' + i"
 				:class="['mf-stage-chip', stage === s ? 'on' : '']"
 				@click="pickStage(s)"
 			>
@@ -135,10 +152,14 @@
 <script>
 	// 时光印记表单:创建/编辑共用(编辑模式传 memoryId 回填)
 	import { getMemory, addMemory, updateMemory, addMedia, deleteMedia, setHighlight } from '../../utils/db'
-	import { chooseImages, chooseVideo, persistFile, startRecord, removeFile } from '../../utils/media'
+	import { chooseImages, chooseVideoMedia, chooseAudio, persistFile, startRecord, removeFile } from '../../utils/media'
 	import { fmtCN, today } from '../../utils/date'
-	import { STAGES, FUTURE_STAGE, emotionOf, stageOfEvent } from '../../utils/stage'
-	import { store } from '../../store'
+	import { STAGES, UNBORN_STAGE, FUTURE_STAGE, emotionOf, stageOfEvent, stageLabelOf } from '../../utils/stage'
+	import { store, loadUser } from '../../store'
+
+	// 视频入口的文件类型白名单: 部分平台文件选择器不过滤类型, 会选到 .mp3 等音频文件
+	const VIDEO_EXTS = ['mp4', 'mov', 'm4v', 'avi', 'mkv', 'webm', '3gp']
+	const AUDIO_EXTS = ['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'amr']
 
 	export default {
 		name: 'memory-form',
@@ -148,10 +169,11 @@
 		data() {
 			return {
 				eventDate: today(),
+				title: '',
 				content: '',
 				images: [],
-				video: null,
-				voice: null,
+				videos: [],
+				voices: [],
 				emotion: '',
 				stage: '',
 				stageManual: false,
@@ -168,7 +190,13 @@
 		},
 		computed: {
 			stageOptions() {
-				return STAGES.map(s => s.label).concat([FUTURE_STAGE.label])
+				// 未出生置首, 其余按年龄升序, 未来计划殿后
+				return [UNBORN_STAGE.label].concat(STAGES.map(s => s.label)).concat([FUTURE_STAGE.label])
+			},
+			// 自动推算/手动选中的阶段胶囊(scroll-into-view 锚点), 保证选中项可见
+			stageAnchor() {
+				const i = this.stageOptions.indexOf(this.stage)
+				return i > -1 ? 'stage-opt-' + i : ''
 			},
 			recordTimeText() {
 				const m = Math.floor(this.recordSeconds / 60)
@@ -176,9 +204,23 @@
 				return `${m < 10 ? '0' + m : m}:${r < 10 ? '0' + r : r}`
 			}
 		},
+		watch: {
+			// 编辑页传入 memoryId 的时机与组件挂载存在竞态, 用 watch 保证任何时序下都能可靠回填
+			memoryId: {
+				immediate: true,
+				handler(id) {
+					if (id) this.load()
+					else this.autoDetectStage()
+				}
+			}
+		},
 		mounted() {
-			if (this.memoryId) this.load()
-			else this.autoDetectStage()
+			// 冷启动直达本页时档案可能尚未载入, 载入后补一次阶段推算
+			if (!store.ready) {
+				loadUser().then(() => {
+					if (!this.memoryId) this.autoDetectStage()
+				})
+			}
 		},
 		beforeUnmount() {
 			this.clearRecordTimer()
@@ -187,19 +229,26 @@
 			emotionOf,
 			fmtCN,
 			async load() {
+				if (!store.ready) await loadUser()
 				const m = await getMemory(this.memoryId)
-				if (!m) return
+				if (!m) {
+					console.warn('[memory-form] 未找到印记, memoryId =', this.memoryId)
+					return
+				}
 				this.eventDate = m.eventDate
+				this.title = m.title || ''
 				this.content = m.content || ''
+				// 未填标题的记录, 存的标题是正文首行的自动截取(内容以其开头)——编辑时标题框应留空
+				if (this.title && this.content.startsWith(this.title)) this.title = ''
 				this.emotion = m.emotion || ''
-				this.stage = m.lifeStage || ''
+				// 出生前的印记统一归一为「未出生」
+				this.stage = stageLabelOf(store.user && store.user.birthDate, m.eventDate, m.lifeStage)
 				this.stageManual = true
 				this.isHighlight = !!m.isHighlight
 				this.images = m.medias.filter(x => x.type === 'image').map(x => x.url)
-				const v = m.medias.find(x => x.type === 'video')
-				this.video = v ? { url: v.url, duration: v.duration } : null
-				const vo = m.medias.find(x => x.type === 'voice')
-				this.voice = vo ? { url: vo.url, duration: vo.duration } : null
+				const videoList = m.medias.filter(x => x.type === 'video')
+				this.videos = videoList.map(x => ({ url: x.url, duration: x.duration || 0, thumb: x.thumbnailUrl || '' }))
+				this.voices = m.medias.filter(x => x.type === 'voice').map(x => ({ url: x.url, duration: x.duration || 0 }))
 				this.existingUrls = m.medias.map(x => x.url)
 				this.loaded = true
 			},
@@ -227,7 +276,9 @@
 				try {
 					const paths = await chooseImages(9 - this.images.length)
 					this.images = this.images.concat(paths)
-				} catch (e) {}
+				} catch (e) {
+					uni.showToast({ title: e.message || '选择图片失败', icon: 'none' })
+				}
 			},
 			previewImage(i) {
 				uni.previewImage({ urls: this.images, current: i })
@@ -237,19 +288,50 @@
 				if (this.loaded) removeFile(p)
 			},
 			async addVideo() {
-				if (this.video) return uni.showToast({ title: '已添加视频,请先删除', icon: 'none' })
+				if (this.videos.length >= 9) return uni.showToast({ title: '最多添加 9 个视频', icon: 'none' })
 				try {
-					this.video = await chooseVideo()
-				} catch (e) {}
+					const v = await chooseVideoMedia()
+					if (v === null) return // 用户取消, 静默
+					const m = v.url.match(/\.(\w+)(?:\?|$)/i)
+					const ext = (m ? m[1] : '').toLowerCase()
+					if (AUDIO_EXTS.includes(ext)) {
+						// 视频入口误选了音频文件: 识别意图, 自动归入语音
+						this.voices.push({ url: v.url, duration: v.duration || 0 })
+						return uni.showToast({ title: '已识别为音频,添加到语音', icon: 'none' })
+					}
+					if (ext && !VIDEO_EXTS.includes(ext)) {
+						return uni.showToast({ title: '仅支持视频或音频文件', icon: 'none' })
+					}
+					// 持久化视频与首帧缩略图(thumbnailUrl)
+					const url = await persistFile(v.url, ext || 'mp4')
+					const thumb = v.thumb ? await persistFile(v.thumb, 'jpg') : ''
+					this.videos.push({ url, duration: v.duration || 0, thumb })
+				} catch (e) {
+					if (e && e.message === 'cancel') return
+					uni.showToast({ title: e.message || '选择视频失败', icon: 'none' })
+				}
 			},
-			removeVideo() {
-				if (this.loaded) removeFile(this.video.url)
-				this.video = null
+			removeVideo(i) {
+				const [v] = this.videos.splice(i, 1)
+				if (this.loaded && v) {
+					removeFile(v.url)
+					if (v.thumb && !/^data:/.test(v.thumb)) removeFile(v.thumb)
+				}
 			},
-			/* ============ 语音录制(弹层交互) ============ */
-			async onVoiceTool() {
+			/* ============ 语音入口: 录制 或 选择本地音频 ============ */
+			onVoiceTool() {
 				if (this.recording) return
-				if (this.voice) return uni.showToast({ title: '已有录音,请先删除', icon: 'none' })
+				if (this.voices.length >= 9) return uni.showToast({ title: '最多添加 9 条语音', icon: 'none' })
+				uni.showActionSheet({
+					itemList: ['录制语音', '选择本地音频文件'],
+					success: r => {
+						if (r.tapIndex === 0) this.startVoiceRecord()
+						else this.pickLocalAudio()
+					}
+				})
+			},
+			// 录制语音(弹层交互)
+			async startVoiceRecord() {
 				try {
 					this.recordHandle = await startRecord()
 					this.recording = true
@@ -262,6 +344,24 @@
 					}, 1000)
 				} catch (e) {
 					uni.showToast({ title: e.message || '录音失败,请检查麦克风权限', icon: 'none' })
+				}
+			},
+			// 选择本地音频文件
+			async pickLocalAudio() {
+				try {
+					const a = await chooseAudio()
+					if (!a) return // 用户取消
+					const m = a.url.match(/\.(\w+)(?:\?|$)/i)
+					const ext = (m ? m[1] : '').toLowerCase()
+					if (VIDEO_EXTS.includes(ext)) {
+						return uni.showToast({ title: '这是视频文件,请通过「视频」添加', icon: 'none' })
+					}
+					const url = await persistFile(a.url, ext || 'mp3')
+					this.voices.push({ url, duration: a.duration || 0 })
+					uni.showToast({ title: '已添加本地音频', icon: 'none' })
+				} catch (e) {
+					if (e && e.message === 'cancel') return
+					uni.showToast({ title: e.message || '选择音频失败', icon: 'none' })
 				}
 			},
 			clearRecordTimer() {
@@ -279,7 +379,7 @@
 				this.recordSeconds = 0
 				if (path) {
 					const url = await persistFile(path, 'mp3')
-					this.voice = { url, duration: seconds }
+					this.voices.push({ url, duration: seconds })
 				}
 			},
 			async cancelRecording() {
@@ -289,13 +389,13 @@
 				this.recording = false
 				this.recordSeconds = 0
 			},
-			removeVoice() {
-				if (this.loaded) removeFile(this.voice.url)
-				this.voice = null
+			removeVoice(i) {
+				const [v] = this.voices.splice(i, 1)
+				if (this.loaded && v) removeFile(v.url)
 			},
 			async save() {
 				// 校验:文字与媒体至少一项(PRD 3.8)
-				const hasMedia = this.images.length || this.video || this.voice
+				const hasMedia = this.images.length || this.videos.length || this.voices.length
 				if (!this.content.trim() && !hasMedia) {
 					return uni.showToast({ title: '请填写文字或添加媒体素材', icon: 'none' })
 				}
@@ -307,22 +407,20 @@
 					for (const p of this.images) {
 						imageUrls.push(isExisting(p) ? p : await persistFile(p))
 					}
-					let videoSaved = null
-					if (this.video) {
-						videoSaved = isExisting(this.video.url)
-							? this.video
-							: { url: await persistFile(this.video.url, 'mp4'), duration: this.video.duration }
-					}
-					let voiceSaved = null
-					if (this.voice) {
-						voiceSaved = isExisting(this.voice.url)
-							? this.voice
-							: { url: await persistFile(this.voice.url, 'mp3'), duration: this.voice.duration }
+					// 视频逐个持久化到应用私有目录(dataURL 缩略图直接保留)
+					for (const v of this.videos) {
+						if (!isExisting(v.url)) {
+							const em = v.url.match(/\.(\w+)(?:\?|$)/i)
+							v.url = await persistFile(v.url, (em ? em[1] : 'mp4').toLowerCase())
+						}
+						if (v.thumb && !/^data:/.test(v.thumb) && !isExisting(v.thumb)) {
+							v.thumb = await persistFile(v.thumb, 'jpg')
+						}
 					}
 
-					// 标题取正文首行
-					const firstLine = this.content.trim().split('\n')[0] || ''
-					const title = firstLine.slice(0, 20)
+					// 标题优先取填写值, 未填时默认取正文首行
+					const firstLine = (this.content.trim().split('\n')[0] || '').slice(0, 20)
+					const title = (this.title || '').trim().slice(0, 20) || firstLine
 
 					const data = {
 						eventDate: this.eventDate,
@@ -350,11 +448,19 @@
 					for (const url of imageUrls) {
 						await addMedia({ memoryId, type: 'image', url, thumbnailUrl: '', sort: sort++ })
 					}
-					if (videoSaved) {
-						await addMedia({ memoryId, type: 'video', url: videoSaved.url, duration: videoSaved.duration || 0, sort: sort++ })
+					// 视频列表逐条落库(已持久化的复用原地址, dataURL 缩略图直接保留)
+					for (const v of this.videos) {
+						const em = v.url.match(/\.(\w+)(?:\?|$)/i)
+						const url = isExisting(v.url) ? v.url : await persistFile(v.url, (em ? em[1] : 'mp4').toLowerCase())
+						let thumb = v.thumb || ''
+						if (thumb && !/^data:/.test(thumb) && !isExisting(thumb)) thumb = await persistFile(thumb, 'jpg')
+						await addMedia({ memoryId, type: 'video', url, duration: v.duration || 0, thumbnailUrl: thumb, sort: sort++ })
 					}
-					if (voiceSaved) {
-						await addMedia({ memoryId, type: 'voice', url: voiceSaved.url, duration: voiceSaved.duration || 0, sort: sort++ })
+					// 语音列表逐条落库(已持久化的复用原地址)
+					for (const v of this.voices) {
+						const em = v.url.match(/\.(\w+)(?:\?|$)/i)
+						const url = isExisting(v.url) ? v.url : await persistFile(v.url, (em ? em[1] : 'mp3').toLowerCase())
+						await addMedia({ memoryId, type: 'voice', url, duration: v.duration || 0, sort: sort++ })
 					}
 					await setHighlight(memoryId, this.isHighlight, title)
 
@@ -363,8 +469,10 @@
 					this.$emit('saved', memoryId)
 					if (!this.memoryId) this.reset()
 					setTimeout(() => {
-						if (this.memoryId) uni.navigateBack()
-						else uni.navigateBack()
+						// 页面栈无上级页面时(如冷启动直达本页)回退失败, 兜底回首页
+						uni.navigateBack({
+							fail: () => uni.reLaunch({ url: '/pages/index/index' })
+						})
 					}, 600)
 				} catch (e) {
 					uni.hideLoading()
@@ -373,10 +481,11 @@
 			},
 			reset() {
 				this.eventDate = today()
+				this.title = ''
 				this.content = ''
 				this.images = []
-				this.video = null
-				this.voice = null
+				this.videos = []
+				this.voices = []
 				this.emotion = ''
 				this.stage = ''
 				this.stageManual = false
@@ -414,6 +523,23 @@
 		border-radius: 50%;
 		background: $ti-accent;
 	}
+	.mf-title-row {
+		display: flex;
+		align-items: center;
+	}
+	.mf-title-label {
+		width: 130rpx;
+		font-size: 32rpx;
+		font-weight: 700;
+		color: $ti-navy;
+		flex-shrink: 0;
+	}
+	.mf-title-input {
+		flex: 1;
+		font-size: 30rpx;
+		color: $ti-text;
+		text-align: right;
+	}
 	.mf-content-card {
 		min-height: 380rpx;
 	}
@@ -449,16 +575,21 @@
 		align-items: center;
 		justify-content: center;
 	}
-	.mf-tool-tile.white {
-		background: #FFFFFF;
-		box-shadow: $shadow-card;
+	/* 浅色雾面(与图标同色系淡底, 无投影) */
+	.mf-tool-tile.mist-teal {
+		background: #EDF3F1;
 	}
-	.mf-tool-tile.orange {
-		background: $ti-accent-light;
+	.mf-tool-tile.mist-orange {
+		background: #FAE8D2;
 	}
-	.mf-tool-tile.teal {
+	/* 深色实面(品牌色渐变 + 同色投影) */
+	.mf-tool-tile.deep-teal {
 		background: linear-gradient(135deg, #579292, #4A8282);
 		box-shadow: 0 8rpx 18rpx rgba(79, 139, 139, 0.28);
+	}
+	.mf-tool-tile.deep-orange {
+		background: linear-gradient(135deg, #F2A262, #EC9048);
+		box-shadow: 0 8rpx 18rpx rgba(240, 153, 90, 0.28);
 	}
 	.mf-tool-icon {
 		width: 56rpx;

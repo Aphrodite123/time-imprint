@@ -1,13 +1,15 @@
 <template>
 	<view class="wd">
-		<!-- 顶部标题 -->
-		<view class="wd-nav" :style="{ paddingTop: statusBarHeight + 'px' }">
-			<view class="wd-head">
-				<text class="wd-title">回忆漫游</text>
-				<text class="wd-sub">随机翻开一段旧时光</text>
-			</view>
-			<image class="wd-search" src="/static/icon-search.png" @click="goSearch" />
-		</view>
+		<!-- 顶部: 返回靠左 + 标题居中, 副标题居中, 搜索工具移到标题下方(避让小程序右上角胶囊) -->
+		<nav-bar title="回忆漫游" subtitle="随机翻开一段旧时光">
+			<template #tools>
+				<view class="nb-tools-group">
+					<view class="nb-tool" @click="goSearch">
+						<image src="/static/icon-search.png" mode="aspectFit" />
+					</view>
+				</view>
+			</template>
+		</nav-bar>
 
 		<!-- 漫游卡片 -->
 		<view v-if="current" class="wd-card-wrap" :key="current.memoryId">
@@ -47,6 +49,9 @@
 			<view class="wd-btn solid" @click="randomOne">再随机一条</view>
 			<view class="wd-btn accent" @click="addHighlight">{{ current.isHighlight ? '已是高光' : '加入高光' }}</view>
 		</view>
+
+		<!-- 吸底 TabBar(按最新设计图, 回忆漫游页与档案馆同属一个标签流) -->
+		<tab-bar current="archive" />
 	</view>
 </template>
 
@@ -59,7 +64,6 @@
 	export default {
 		data() {
 			return {
-				statusBarHeight: 20,
 				all: [],
 				current: null,
 				loading: false
@@ -76,10 +80,6 @@
 			emotion() {
 				return this.current ? emotionOf(this.current.emotion) : null
 			}
-		},
-		onLoad() {
-			const sys = uni.getSystemInfoSync()
-			this.statusBarHeight = sys.statusBarHeight || 20
 		},
 		onShow() {
 			this.init()
@@ -130,38 +130,11 @@
 	.wd {
 		min-height: 100vh;
 		background: $ti-bg;
-		padding-bottom: 64rpx;
-	}
-	.wd-nav {
-		position: relative;
-		background: $ti-bg;
-	}
-	.wd-head {
-		text-align: center;
-		padding: 28rpx $page-pad 0;
-	}
-	.wd-title {
-		font-size: 64rpx;
-		font-weight: 800;
-		color: $ti-navy;
-		letter-spacing: 6rpx;
-	}
-	.wd-sub {
-		display: block;
-		margin-top: 14rpx;
-		font-size: 28rpx;
-		color: $ti-text-3;
-	}
-	.wd-search {
-		position: absolute;
-		right: 40rpx;
-		top: 40rpx;
-		width: 44rpx;
-		height: 44rpx;
+		padding-bottom: 200rpx;
 	}
 	.wd-card-wrap {
 		position: relative;
-		margin: 44rpx $page-pad 0;
+		margin: 28rpx $page-pad 0;
 	}
 	.wd-card-back {
 		position: absolute;

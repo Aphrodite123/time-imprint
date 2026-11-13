@@ -1,11 +1,15 @@
 <template>
 	<view class="cp">
-		<nav-bar title="" :back="true" />
-
-		<view class="cp-head">
-			<text class="cp-title">成长对比</text>
-			<text class="cp-sub">看看不同阶段的自己</text>
-		</view>
+		<!-- 顶部: 返回靠左 + 标题居中, 副标题居中, 更多工具移到标题下方 -->
+		<nav-bar title="成长对比" subtitle="看看不同阶段的自己">
+			<template #tools>
+				<view class="nb-tools-group">
+					<view class="nb-tool" @click="onMore">
+						<image src="/static/icon-more.png" mode="aspectFit" />
+					</view>
+				</view>
+			</template>
+		</nav-bar>
 
 		<template v-if="birth">
 			<!-- 时间点选择 -->
@@ -90,6 +94,9 @@
 				</template>
 			</empty-state>
 		</view>
+
+		<!-- 吸底 TabBar(按最新设计图, 成长对比页与档案馆同属一个标签流) -->
+		<tab-bar current="archive" />
 	</view>
 </template>
 
@@ -196,6 +203,20 @@
 			},
 			goProfile() {
 				uni.navigateTo({ url: '/pages/mine/profile' })
+			},
+			onMore() {
+				uni.showActionSheet({
+					itemList: ['重新选择阶段', '查看成长快照'],
+					success: r => {
+						if (r.tapIndex === 0) {
+							this.firstAge = Math.max(this.firstAge - 10, 0)
+							this.secondAge = Math.min(this.secondAge + 10, MAX_AGE)
+							this.loadAll()
+						} else {
+							uni.reLaunch({ url: '/pages/archive/archive' })
+						}
+					}
+				})
 			}
 		}
 	}
@@ -205,23 +226,7 @@
 	.cp {
 		min-height: 100vh;
 		background: $ti-bg;
-		padding-bottom: 64rpx;
-	}
-	.cp-head {
-		text-align: center;
-		padding: 0 $page-pad;
-	}
-	.cp-title {
-		font-size: 52rpx;
-		font-weight: 800;
-		color: $ti-navy;
-		letter-spacing: 2rpx;
-	}
-	.cp-sub {
-		display: block;
-		margin-top: 12rpx;
-		font-size: 26rpx;
-		color: $ti-text-3;
+		padding-bottom: 200rpx;
 	}
 	.cp-picker-row {
 		display: flex;

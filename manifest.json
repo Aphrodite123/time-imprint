@@ -116,7 +116,15 @@
     "quickapp" : {},
     /* 小程序特有相关 */
     "mp-weixin" : {
-        "appid" : "",
+        "appid" : "wx02cdd48ec8c94ac2",
+		"permission": {
+			"scope.camera": {
+				"desc": "用于拍照及扫码识别"
+			},
+			"scope.writePhotosAlbum": {
+				"desc": "用于保存图片到你的相册"
+			}
+		},
         "setting" : {
             "urlCheck" : false,
             "es6" : true,

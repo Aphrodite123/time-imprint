@@ -43,17 +43,37 @@
 		},
 		methods: {
 			route() {
-				const guided = uni.getStorageSync(GUIDE_KEY)
-				if (!guided) {
-					uni.reLaunch({ url: '/pages/guide/guide' })
-					return
+				// 防御:历史版本残留的脏数据(类型异常/页面路径已废弃)不能阻断启动
+				try {
+					const guided = uni.getStorageSync(GUIDE_KEY)
+					if (!guided) {
+						this.go('/pages/guide/guide')
+						return
+					}
+					const last = uni.getStorageSync(LAST_KEY)
+					if (typeof last === 'string' && last && !last.startsWith('/pages/splash')) {
+						// 目标页失效时回退到首页
+						this.go(last, '/pages/index/index')
+					} else {
+						this.go('/pages/index/index')
+					}
+				} catch (e) {
+					this.go('/pages/index/index')
 				}
-				const last = uni.getStorageSync(LAST_KEY)
-				if (last && !last.startsWith('/pages/splash')) {
-					uni.reLaunch({ url: last })
-				} else {
-					uni.reLaunch({ url: '/pages/index/index' })
-				}
+			},
+			// 带兜底的跳转:失败时清理失效路由并回退,避免卡在闪屏页
+			go(url, fallback) {
+				uni.reLaunch({
+					url,
+					fail: () => {
+						if (fallback) {
+							try { uni.removeStorageSync(LAST_KEY) } catch (e) {}
+							this.go(fallback)
+						} else {
+							uni.showToast({ title: '页面加载失败，请重试', icon: 'none' })
+						}
+					}
+				})
 			}
 		}
 	}

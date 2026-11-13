@@ -10,7 +10,7 @@ const STORE_PREFIX = 'ti_db_'
 // 建表语句(App 端 SQLite)
 const TABLE_SQLS = [
 	`CREATE TABLE IF NOT EXISTS user (userId TEXT PRIMARY KEY, nickname TEXT, avatar TEXT, birthDate TEXT, gender TEXT, status TEXT, createdAt INTEGER, updatedAt INTEGER)`,
-	`CREATE TABLE IF NOT EXISTS memory (memoryId TEXT PRIMARY KEY, userId TEXT, eventDate TEXT, title TEXT, content TEXT, emotion TEXT, lifeStage TEXT, isHighlight INTEGER DEFAULT 0, isArchived INTEGER DEFAULT 0, createdAt INTEGER, updatedAt INTEGER)`,
+	`CREATE TABLE IF NOT EXISTS memory (memoryId TEXT PRIMARY KEY, userId TEXT, eventDate TEXT, title TEXT, content TEXT, emotion TEXT, lifeStage TEXT, isHighlight INTEGER DEFAULT 0, isFavorite INTEGER DEFAULT 0, isArchived INTEGER DEFAULT 0, createdAt INTEGER, updatedAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS media (mediaId TEXT PRIMARY KEY, memoryId TEXT, type TEXT, url TEXT, thumbnailUrl TEXT, duration REAL, sort INTEGER, createdAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS highlight (highlightId TEXT PRIMARY KEY, userId TEXT, memoryId TEXT, highlightTitle TEXT, createdAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS growth_comparison (comparisonId TEXT PRIMARY KEY, userId TEXT, firstDate TEXT, secondDate TEXT, summary TEXT, createdAt INTEGER)`
@@ -93,6 +93,10 @@ export async function initDB() {
 			})
 		})
 		for (const sql of TABLE_SQLS) await appExec(sql)
+		// 旧库升级: 补建收藏字段(字段已存在时报错, 忽略即可)
+		try {
+			await appExec('ALTER TABLE memory ADD COLUMN isFavorite INTEGER DEFAULT 0')
+		} catch (e) {}
 	}
 }
 
@@ -164,6 +168,7 @@ export async function addMemory(data) {
 		emotion: '',
 		lifeStage: '',
 		isHighlight: 0,
+		isFavorite: 0,
 		isArchived: 0,
 		createdAt: now,
 		updatedAt: now
@@ -309,12 +314,20 @@ export async function setHighlight(memoryId, on, title) {
 				createdAt: Date.now()
 			})
 		}
-	} else {
-		await dbDelete('highlight', 'memoryId', memoryId)
+		} else {
+			await dbDelete('highlight', 'memoryId', memoryId)
+		}
 	}
-}
 
-/* ==================== 成长对比 ==================== */
+	/* ==================== 收藏 ==================== */
+	/**
+	 * 标记/取消收藏(独立于高光)
+	 */
+	export async function setFavorite(memoryId, on) {
+		await dbUpdate('memory', { isFavorite: on ? 1 : 0, updatedAt: Date.now() }, 'memoryId', memoryId)
+	}
+
+	/* ==================== 成长对比 ==================== */
 export async function addComparison(data) {
 	const c = Object.assign({ comparisonId: genId(), userId: '', summary: '', createdAt: Date.now() }, data)
 	await dbInsert('growth_comparison', c)

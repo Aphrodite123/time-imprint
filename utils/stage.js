@@ -13,10 +13,13 @@ export const STAGES = [
 	{ key: 'elder', label: '暮年', min: 66, max: null }
 ]
 
+// 出生前(发生日期早于出生日期, 年龄<0)的印记统一显示为「未出生」
+export const UNBORN_STAGE = { key: 'unborn', label: '未出生' }
+
 export const FUTURE_STAGE = { key: 'future', label: '未来计划' }
 
 // 时间轴年龄分割线(5 的倍数 + 18)
-export const AGE_MARKS = [0, 5, 10, 15, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
+export const AGE_MARKS = [0, 5, 10, 15, 18, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100, 105, 110, 115, 120]
 
 // 情绪表情表
 export const EMOTIONS = [
@@ -36,12 +39,25 @@ export function emotionOf(key) {
 
 /**
  * 按年龄获取人生阶段
- * @param age 周岁;负数表示未来
+ * @param age 周岁;负数表示出生前
  */
 export function stageByAge(age) {
 	if (age === null || age === undefined) return null
-	if (age < 0) return FUTURE_STAGE
+	if (age < 0) return UNBORN_STAGE
 	return STAGES.find(s => age >= s.min && (s.max === null || age <= s.max)) || FUTURE_STAGE
+}
+
+/**
+ * 展示用人生阶段:发生日期早于出生日期(年龄<0)的印记统一显示为「未出生」
+ * @param birthDate 用户出生日期,可为空
+ * @param eventDate 事件发生日期
+ * @param storedStage 记录上保存的人生阶段
+ */
+export function stageLabelOf(birthDate, eventDate, storedStage) {
+	if (!birthDate || !eventDate) return storedStage || ''
+	const b = new Date(birthDate.replace(/-/g, '/'))
+	const e = new Date(eventDate.replace(/-/g, '/'))
+	return e < b ? UNBORN_STAGE.label : (storedStage || '')
 }
 
 /**

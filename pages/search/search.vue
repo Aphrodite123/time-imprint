@@ -1,8 +1,11 @@
 <template>
 	<view class="se">
-		<!-- 搜索栏 -->
+		<!-- 搜索栏: 固定吸顶不随页面滚动; 行高对齐右上角胶囊(行中心=胶囊中心), 右侧避让胶囊 -->
 		<view class="se-nav" :style="{ paddingTop: statusBarHeight + 'px' }">
-			<view class="se-nav-row">
+			<view
+				class="se-nav-row"
+				:style="[{ height: rowHeight + 'px' }, navInset ? { paddingRight: navInset + 4 + 'px' } : {}]"
+			>
 				<image class="se-back" src="/static/icon-back.png" @click="goBack" />
 				<view class="se-input-wrap">
 					<input
@@ -19,6 +22,8 @@
 				<text class="se-btn" @click="onConfirm">搜索</text>
 			</view>
 		</view>
+		<!-- 文档流占位: 高度与固定搜索栏一致 -->
+		<view class="se-nav-placeholder" :style="{ height: statusBarHeight + rowHeight + 'px' }"></view>
 
 		<!-- 筛选类型 -->
 		<scroll-view scroll-x class="se-chips">
@@ -109,7 +114,7 @@
 				</text>
 				<view class="se-item-tags">
 					<text v-if="emotionOf(m.emotion)" class="se-tag teal">{{ emotionOf(m.emotion).label }}</text>
-					<text v-if="m.lifeStage" class="se-tag orange">{{ m.lifeStage }}</text>
+					<text v-if="stageLabel(m)" class="se-tag orange">{{ stageLabel(m) }}</text>
 				</view>
 			</view>
 			<view v-if="!results.length" class="se-empty">
@@ -122,8 +127,10 @@
 <script>
 	// 搜索页:标题/正文关键词 + 时间/心情/阶段/高光筛选 + 最近搜索
 	import { listMemories } from '../../utils/db'
-	import { EMOTIONS, STAGES, emotionOf } from '../../utils/stage'
+	import { EMOTIONS, STAGES, UNBORN_STAGE, emotionOf, stageLabelOf } from '../../utils/stage'
+	import { getNavMetrics } from '../../utils/nav'
 	import { fmtCN } from '../../utils/date'
+	import { store } from '../../store'
 
 	const RECENT_KEY = 'ti_recent_search'
 
@@ -131,12 +138,14 @@
 		data() {
 			return {
 				statusBarHeight: 20,
+				navInset: 0,
+				rowHeight: uni.upx2px(96), // 搜索行高度: 小程序端按胶囊对齐计算(行中心=胶囊中心)
 				keyword: '',
 				filterType: '', // '' | year | emotion | stage | highlight
 				filterValue: '',
 				years: [],
 				emotions: EMOTIONS,
-				stages: STAGES,
+				stages: STAGES.concat([UNBORN_STAGE]),
 				quickMoods: EMOTIONS.slice(0, 4),
 				recents: [],
 				results: [],
@@ -144,14 +153,24 @@
 			}
 		},
 		onLoad() {
-			const sys = uni.getSystemInfoSync()
-			this.statusBarHeight = sys.statusBarHeight || 20
+			const nav = getNavMetrics()
+			this.statusBarHeight = nav.statusBarHeight
+			this.navInset = nav.rightInset
+			// 小程序端: 行高 = (胶囊顶距状态栏) * 2 + 胶囊高, 使行中心与胶囊中心重合
+			if (nav.rightInset > 0 && nav.capsuleHeight > 0) {
+				this.rowHeight = (nav.capsuleTop - nav.statusBarHeight) * 2 + nav.capsuleHeight
+			}
 			this.recents = uni.getStorageSync(RECENT_KEY) || []
 			this.initYears()
 		},
 		methods: {
 			emotionOf,
 			fmtCN,
+			// 展示用人生阶段: 出生前的印记统一显示「未出生」
+			stageLabel(m) {
+				const birth = store.user && store.user.birthDate
+				return stageLabelOf(birth, m.eventDate, m.lifeStage)
+			},
 			goBack() {
 				uni.navigateBack()
 			},
@@ -214,7 +233,7 @@
 					all = all.filter(m => m.emotion === this.filterValue)
 				}
 				if (this.filterType === 'stage' && this.filterValue) {
-					all = all.filter(m => m.lifeStage === this.filterValue)
+					all = all.filter(m => this.stageLabel(m) === this.filterValue)
 				}
 				if (this.filterType === 'highlight') {
 					all = all.filter(m => m.isHighlight)
@@ -262,14 +281,22 @@
 		padding-bottom: 64rpx;
 	}
 	.se-nav {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 900;
 		background: $ti-bg;
 	}
+	.se-nav-placeholder {
+		width: 100%;
+	}
 	.se-nav-row {
-		height: 96rpx;
 		display: flex;
 		align-items: center;
 		gap: 20rpx;
 		padding: 0 $page-pad;
+		box-sizing: border-box;
 	}
 	.se-back {
 		width: 44rpx;
@@ -278,7 +305,7 @@
 	}
 	.se-input-wrap {
 		flex: 1;
-		height: 84rpx;
+		height: 76rpx;
 		background: $ti-card;
 		border-radius: 999rpx;
 		padding: 0 32rpx;

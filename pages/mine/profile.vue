@@ -78,7 +78,9 @@
 				try {
 					const paths = await chooseImages(1)
 					if (paths.length) this.avatar = await persistFile(paths[0])
-				} catch (e) {}
+				} catch (e) {
+					uni.showToast({ title: e.message || '选择图片失败', icon: 'none' })
+				}
 			},
 			pickGender() {
 				const options = ['女', '男', '保密']
