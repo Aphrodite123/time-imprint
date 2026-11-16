@@ -131,7 +131,8 @@
             "minified" : true
         },
         "usingComponents" : true,
-        "requiredPrivateInfos" : []
+        "requiredPrivateInfos" : [],
+        "lazyCodeLoading" : "requiredComponents"
     },
     "mp-alipay" : {
         "usingComponents" : true
