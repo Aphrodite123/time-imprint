@@ -19,11 +19,13 @@
 					<text class="hl-feat-date">{{ fmtCN(featured.eventDate) }}</text>
 				</view>
 				<media-grid :medias="featured.medias" :max-images="1" class="hl-feat-media" />
-				<text class="hl-feat-title">{{ featured.title || '一段闪闪发光的日子' }}</text>
+				<text v-if="featTitle" class="hl-feat-title">{{ featTitle }}</text>
 				<text v-if="featured.content" class="hl-feat-content">{{ featured.content }}</text>
 				<view class="hl-feat-foot">
 					<text v-if="emotionOf(featured.emotion)" class="hl-feat-emotion">{{ emotionOf(featured.emotion).label }}</text>
-					<text class="hl-feat-stars">★ ★ ★</text>
+					<view class="hl-feat-stars">
+						<text v-for="i in maxLevel" :key="i" :class="['hl-feat-star', i <= featLevel ? 'on' : '']">★</text>
+					</view>
 				</view>
 			</view>
 
@@ -40,15 +42,12 @@
 					@click="goDetail(m)"
 					@longpress="onLongpress(m)"
 				>
-					<image v-if="thumbOf(m)" :src="thumbOf(m)" mode="aspectFill" class="hl-thumb" />
-					<view v-else class="hl-thumb hl-thumb-blank">
-						<text class="hl-thumb-star">★</text>
-					</view>
+					<memory-thumb :memory="m" />
 					<view class="hl-item-info">
 						<text class="hl-item-date">{{ fmtCN(m.eventDate) }}</text>
 						<text class="hl-item-title">{{ m.title || '(未命名印记)' }}</text>
 					</view>
-					<text class="hl-item-star">★</text>
+					<text class="hl-item-star">{{ starsText(m) }}</text>
 				</view>
 			</view>
 		</view>
@@ -60,22 +59,45 @@
 </template>
 
 <script>
-	// 高光回忆集:汇总所有标记高光的重要人生瞬间(需求 2.5)
+	// 高光回忆集:汇总所有标记高光的重要人生瞬间(需求 2.5), 按 1~5 星规则展示
 	import { listMemories, setHighlight, deleteMemory } from '../../utils/db'
 	import { removeFile } from '../../utils/media'
 	import { fmtCN } from '../../utils/date'
 	import { emotionOf } from '../../utils/stage'
+	import { HL_LEVELS, MAX_HL_LEVEL, levelOf, starsText } from '../../utils/highlight'
 
 	export default {
 		data() {
-			return { list: [], loading: false }
+			return { list: [], loading: false, maxLevel: MAX_HL_LEVEL }
 		},
 		computed: {
+			// 精选规则: 星数最高者优先, 同星数取日期最近的一条
 			featured() {
-				return this.list[0] || null
+				if (!this.list.length) return null
+				let best = this.list[0]
+				for (const m of this.list) {
+					const better = levelOf(m) > levelOf(best) ||
+						(levelOf(m) === levelOf(best) && (m.eventDate || '') > (best.eventDate || ''))
+					if (better) best = m
+				}
+				return best
 			},
+			// 其余高光保持日期升序(成长轨迹)
 			rest() {
-				return this.list.slice(1)
+				return this.list.filter(m => m !== this.featured)
+			},
+			featLevel() {
+				return levelOf(this.featured)
+			},
+			// 精选卡标题: 有标题显示标题, 未填时用占位文案; 历史数据里标题是复制正文的(旧版保存时取了正文首行)不再重复展示, 由正文单独显示
+			featTitle() {
+				const m = this.featured
+				if (!m) return ''
+				const t = (m.title || '').trim()
+				const c = (m.content || '').trim()
+				if (!t) return '一段闪闪发光的日子'
+				if (c && (c.startsWith(t) || t.startsWith(c))) return ''
+				return t
 			}
 		},
 		onShow() {
@@ -84,10 +106,7 @@
 		methods: {
 			emotionOf,
 			fmtCN,
-			thumbOf(m) {
-				const img = (m.medias || []).find(x => x.type === 'image')
-				return img ? img.url : ''
-			},
+			starsText,
 			async load() {
 				this.loading = true
 				try {
@@ -99,9 +118,21 @@
 			goDetail(m) {
 				uni.navigateTo({ url: '/pages/memory/detail?id=' + m.memoryId })
 			},
+			// 手动调整高光星数(1~5 星, 调整后按新星级重排精选)
+			adjustLevel(m) {
+				uni.showActionSheet({
+					itemList: HL_LEVELS.map(l => '★'.repeat(l.level) + ' ' + l.label),
+					success: async r => {
+						const hit = HL_LEVELS[r.tapIndex]
+						await setHighlight(m.memoryId, true, m.title, hit.level)
+						uni.showToast({ title: '已设为「' + hit.label + '」', icon: 'none' })
+						this.load()
+					}
+				})
+			},
 			onLongpress(m) {
 				uni.showActionSheet({
-					itemList: ['编辑', '删除', '取消高光'],
+					itemList: ['编辑', '删除', '调整星数', '取消高光'],
 					success: async r => {
 						if (r.tapIndex === 0) {
 							uni.navigateTo({ url: '/pages/memory/edit?id=' + m.memoryId })
@@ -117,6 +148,8 @@
 									this.load()
 								}
 							})
+						} else if (r.tapIndex === 2) {
+							this.adjustLevel(m)
 						} else {
 							await setHighlight(m.memoryId, false, m.title)
 							this.load()
@@ -148,6 +181,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		margin-bottom: 36rpx;
 	}
 	.hl-feat-badge {
 		font-size: $font-small;
@@ -198,9 +232,16 @@
 		padding: 8rpx 22rpx;
 	}
 	.hl-feat-stars {
-		font-size: 26rpx;
-		color: $ti-accent;
-		letter-spacing: 6rpx;
+		display: flex;
+		align-items: center;
+		gap: 10rpx;
+	}
+	.hl-feat-star {
+		font-size: 30rpx;
+		color: #E3DCCB;
+		&.on {
+			color: $ti-accent;
+		}
 	}
 
 	/* 更多高光 */
@@ -232,26 +273,12 @@
 		margin-bottom: 24rpx;
 		box-shadow: $shadow-card;
 	}
-	.hl-thumb {
-		width: 104rpx;
-		height: 104rpx;
-		border-radius: 30rpx;
-		flex-shrink: 0;
-		background: $ti-bg;
-	}
-	.hl-thumb-blank {
-		background: linear-gradient(150deg, #FAE8D2, #F5D9AE);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-	.hl-thumb-star {
-		color: $ti-accent;
-		font-size: 44rpx;
-	}
 	.hl-item-info {
 		flex: 1;
 		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
 	}
 	.hl-item-date {
 		font-size: 22rpx;
@@ -270,7 +297,9 @@
 	}
 	.hl-item-star {
 		color: $ti-accent;
-		font-size: 30rpx;
+		font-size: 28rpx;
+		letter-spacing: 4rpx;
+		flex-shrink: 0;
 	}
 	.hl-empty {
 		padding-top: 40rpx;

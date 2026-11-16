@@ -24,8 +24,8 @@
 					<text class="mn-edit">编辑资料 ›</text>
 				</view>
 			</view>
-			<!-- 数据统计 -->
-			<view class="mn-stats">
+			<!-- 数据统计: 点击查看所有印记 -->
+			<view class="mn-stats" @click.stop="goRecords">
 				<view class="mn-stat">
 					<text class="mn-stat-num teal">{{ stats.total }}</text>
 					<text class="mn-stat-label">印记</text>
@@ -164,6 +164,10 @@
 			},
 			goProfile() {
 				uni.navigateTo({ url: '/pages/mine/profile' })
+			},
+			// 统计区跳转记录页,与 tab 切换行为保持一致
+			goRecords() {
+				uni.reLaunch({ url: '/pages/records/records' })
 			},
 			goSettings() {
 				uni.navigateTo({ url: '/pages/mine/settings' })
