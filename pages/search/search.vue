@@ -134,7 +134,15 @@
 
 	const RECENT_KEY = 'ti_recent_search'
 
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			return {
 				statusBarHeight: 20,

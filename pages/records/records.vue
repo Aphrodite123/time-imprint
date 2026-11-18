@@ -77,7 +77,15 @@
 	const PAGE_SIZE = 20
 	const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			return {
 				total: 0,

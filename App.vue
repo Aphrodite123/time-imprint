@@ -6,6 +6,12 @@
 		onLaunch() {
 			// 初始化本地数据库并载入用户档案
 			initDB().then(() => loadUser()).catch(console.error)
+			// 显式开启转发/朋友圈分享菜单(各页面已定义 onShareAppMessage/onShareTimeline)
+			// 注: 测试号/被禁分享的账号此处会报 banned, 静默处理
+			// #ifdef MP-WEIXIN
+			uni.showShareMenu({ withShareTicket: false, menus: ['shareAppMessage', 'shareTimeline'] })
+				.catch(() => {})
+			// #endif
 		},
 		onShow() {},
 		onHide() {}

@@ -30,7 +30,15 @@
 	// 闪屏页:首次使用跳引导页,之后固定进入首页
 	const GUIDE_KEY = 'ti_guide_done'
 
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			return { timer: null }
 		},
