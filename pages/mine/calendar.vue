@@ -38,7 +38,15 @@
 	import { listMemories, listMemoriesByRange } from '../../utils/db'
 	import { monthMatrix, fmtCN, fmtDate, today } from '../../utils/date'
 
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			const now = new Date()
 			return {

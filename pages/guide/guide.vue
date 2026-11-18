@@ -45,7 +45,15 @@
 <script>
 	// 引导页:品牌页 → 记录页 → 回忆页;按钮或滑动到末页完成引导 → 填写个人档案
 	// 内容页为弹性自适应布局:图片区随屏幕高度伸缩(短屏裁切居中、不裁文字),文字区域永远完整
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			return {
 				statusBarHeight: 20,

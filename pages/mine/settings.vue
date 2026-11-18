@@ -64,7 +64,15 @@
 
 	const RATES = [0.75, 1.0, 1.25, 1.5, 2.0]
 
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			return { rate: 1.0 }
 		},

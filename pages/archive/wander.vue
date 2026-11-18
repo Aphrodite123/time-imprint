@@ -16,19 +16,23 @@
 			<view class="wd-card-back left"></view>
 			<view class="wd-card-back right"></view>
 			<view class="wd-card">
-				<image v-if="photo" :src="photo" mode="aspectFill" class="wd-photo" @click="previewPhoto" />
-				<view v-else class="wd-photo wd-photo-blank">
-					<text class="wd-photo-blank-icon">🕰️</text>
+				<!-- 有图片/视频: 网格全量铺开(多图点击翻看, 视频点击原地播放), 与详情页同一套 -->
+				<media-grid v-if="avMedias.length" :medias="avMedias" :max-images="9" />
+				<!-- 无图无视频: 按统一缩略图规则展示大图(语音声波/心情切图, 语音可点击播放) -->
+				<view v-else class="wd-media">
+					<memory-thumb :memory="current" size="lg" />
 				</view>
 				<view class="wd-meta">
 					<text class="wd-date">{{ fmtCN(current.eventDate) }}</text>
-					<text v-if="voice" class="wd-voice-icon">🎙</text>
 				</view>
 				<view class="wd-divider"></view>
-				<text class="wd-m-title">{{ current.title || '一段旧时光' }}</text>
+				<!-- 无标题或标题复制自正文(旧数据)时不展示, 避免与正文重复 -->
+				<text v-if="wdTitle" class="wd-m-title">{{ wdTitle }}</text>
 				<text v-if="current.content" class="wd-content">{{ current.content }}</text>
-				<view class="wd-bottom">
-					<voice-bar v-if="voice" :src="voice.url" :duration="voice.duration" class="wd-voice" />
+				<view class="wd-bottom" v-if="voices.length || emotion">
+					<view class="wd-voice-list" v-if="voices.length">
+						<voice-bar v-for="(v, i) in voices" :key="v.url" :src="v.url" :duration="v.duration" />
+					</view>
 					<view v-if="emotion" class="wd-emotion">
 						<text class="wd-emotion-emoji">{{ emotion.emoji }}</text>
 						<text class="wd-emotion-label">{{ emotion.label }}</text>
@@ -61,7 +65,15 @@
 	import { fmtCN } from '../../utils/date'
 	import { emotionOf } from '../../utils/stage'
 
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		data() {
 			return {
 				all: [],
@@ -70,19 +82,31 @@
 			}
 		},
 		computed: {
-			photo() {
-				const m = (this.current && this.current.medias || []).find(x => x.type === 'image')
-				return m ? m.url : ''
+			// 图片+视频全量交给 media-grid 铺开(多图点击翻看, 视频点击原地播放)
+			avMedias() {
+				return ((this.current && this.current.medias) || []).filter(x => x.type === 'image' || x.type === 'video')
 			},
-			voice() {
-				return ((this.current && this.current.medias) || []).find(x => x.type === 'voice') || null
+			// 语音全部列出, 逐条播放
+			voices() {
+				return ((this.current && this.current.medias) || []).filter(x => x.type === 'voice')
 			},
 			emotion() {
 				return this.current ? emotionOf(this.current.emotion) : null
+			},
+			// 卡片标题: 没有标题不展示; 旧数据里标题复制自正文首行(内容以其开头)时也不重复展示
+			wdTitle() {
+				const m = this.current
+				if (!m) return ''
+				const t = (m.title || '').trim()
+				const c = (m.content || '').trim()
+				if (!t) return ''
+				if (c && (c.startsWith(t) || t.startsWith(c))) return ''
+				return t
 			}
 		},
 		onShow() {
-			this.init()
+			// 注意: 图片预览/原生弹层关闭也会触发 onShow, 这里只刷新数据不重随机, 保持当前展示的那条
+			this.refresh()
 		},
 		methods: {
 			fmtCN,
@@ -92,11 +116,19 @@
 			goCreate() {
 				uni.navigateTo({ url: '/pages/memory/create' })
 			},
-			async init() {
+			async refresh() {
 				this.loading = true
 				try {
 					this.all = await listMemories({ offset: 0, limit: 9999 })
-					this.randomOne()
+					if (!this.all.length) {
+						this.current = null
+					} else if (!this.current || !this.all.some(m => m.memoryId === this.current.memoryId)) {
+						// 首次进入, 或当前那条已被删除: 重新随机
+						this.randomOne()
+					} else {
+						// 保持当前那条, 仅同步最新数据(编辑后返回可见更新)
+						this.current = this.all.find(m => m.memoryId === this.current.memoryId)
+					}
 				} finally {
 					this.loading = false
 				}
@@ -118,9 +150,6 @@
 				await setHighlight(this.current.memoryId, true, this.current.title)
 				this.current.isHighlight = 1
 				uni.showToast({ title: '已加入高光回忆集', icon: 'none' })
-			},
-			previewPhoto() {
-				uni.previewImage({ urls: [this.photo] })
 			}
 		}
 	}
@@ -164,19 +193,8 @@
 		padding: 30rpx;
 		box-shadow: $shadow-float;
 	}
-	.wd-photo {
-		width: 100%;
+	.wd-media {
 		height: 400rpx;
-		border-radius: 40rpx;
-	}
-	.wd-photo-blank {
-		background: linear-gradient(150deg, #DCEBEA, #C4DEDA);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-	.wd-photo-blank-icon {
-		font-size: 100rpx;
 	}
 	.wd-meta {
 		display: flex;
@@ -189,10 +207,6 @@
 		font-size: 28rpx;
 		font-weight: 800;
 		color: $ti-navy;
-	}
-	.wd-voice-icon {
-		font-size: 28rpx;
-		color: $ti-text-3;
 	}
 	.wd-divider {
 		border-top: 4rpx dashed $ti-line;
@@ -220,10 +234,13 @@
 		margin-top: 28rpx;
 		gap: 24rpx;
 		padding: 0 6rpx 6rpx;
-
-		.wd-voice {
-			flex: 1;
-		}
+	}
+	.wd-voice-list {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 16rpx;
 	}
 	.wd-emotion {
 		display: flex;

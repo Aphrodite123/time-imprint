@@ -7,7 +7,15 @@
 
 <script>
 	// 创建时光印记(与编辑页共用 memory-form)
+	import { appShare, appShareTimeline } from '../../utils/share'
 	export default {
+		// 微信转发/朋友圈分享(统一应用推广, 见 utils/share.js)
+		onShareAppMessage() {
+			return appShare()
+		},
+		onShareTimeline() {
+			return appShareTimeline()
+		},
 		methods: {
 			onSaved() {}
 		}

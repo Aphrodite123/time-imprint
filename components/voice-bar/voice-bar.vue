@@ -26,11 +26,10 @@
 </template>
 
 <script>
-	// 语音播放条:自管理播放状态;播放速度跟随「设置-语音播放速度」
-	// 多条语音条互斥: 同一时间只有一条在播, 其他条开始播放/点进度时自动停掉在播的
+	// 语音播放条:播放状态/进度走全局共享播放器(utils/voice-player)
+	// 好处: 同一时间只播一条, 且声波切图(memory-thumb)等多处按钮与语音条状态联动
 	import { probeAudioDuration } from '../../utils/media'
-
-	let activeBar = null
+	import { voiceState, toggleVoiceUrl, seekVoiceUrl, releaseVoice } from '../../utils/voice-player'
 
 	export default {
 		name: 'voice-bar',
@@ -40,17 +39,24 @@
 		},
 		data() {
 			return {
-				audio: null,
-				playing: false,
-				current: 0,
-				audioDuration: 0,
+				audioDuration: 0, // 本条探测到的时长(无 duration 属性时的兜底)
 				rect: null, // 轨道位置缓存(拖动换算用)
 				dragMoved: false // 本次触摸是否发生了拖动(避免拖动结束误触发点击)
 			}
 		},
 		computed: {
 			totalDuration() {
-				return this.duration || this.audioDuration
+				if (this.duration) return this.duration
+				if (voiceState.url === this.src && voiceState.duration) return voiceState.duration
+				return this.audioDuration
+			},
+			// 是否播放中: 全局播放器指向本条且在播
+			playing() {
+				return voiceState.url === this.src && voiceState.playing
+			},
+			// 进度: 本条是当前语音时实时跟随播放器, 否则展示记忆的进度(被抢占/暂停后保留)
+			current() {
+				return voiceState.url === this.src ? voiceState.current : (voiceState.positions[this.src] || 0)
 			},
 			percent() {
 				if (!this.totalDuration) return 0
@@ -66,54 +72,10 @@
 			}
 		},
 		beforeUnmount() {
-			if (this.audio) {
-				this.audio.stop()
-				this.audio.destroy()
-			}
-			if (activeBar === this) activeBar = null
+			// 本条还在全局播放中(切页/删除条目)时停掉
+			releaseVoice(this.src)
 		},
 		methods: {
-			// 懒创建音频实例(事件路由到本组件)
-			ensureAudio() {
-				if (this.audio) return this.audio
-				const a = uni.createInnerAudioContext()
-				try { a.obeyMuteSwitch = false } catch (e) {}
-				a.src = this.src
-				a.playbackRate = this.storedRate()
-				a.onCanplay(() => {
-					if (a.duration) this.audioDuration = Math.ceil(a.duration)
-				})
-				a.onTimeUpdate(() => {
-					this.current = Math.floor(a.currentTime)
-					if (a.duration) this.audioDuration = Math.ceil(a.duration)
-				})
-				a.onEnded(() => {
-					this.playing = false
-					this.current = 0
-					if (activeBar === this) activeBar = null
-				})
-				a.onError(() => {
-					this.playing = false
-					if (activeBar === this) activeBar = null
-					uni.showToast({ title: '语音播放失败', icon: 'none' })
-				})
-				this.audio = a
-				return a
-			},
-			// 独占播放: 停掉其他语音条的播放
-			claimPlayback() {
-				if (activeBar && activeBar !== this) activeBar.stopPlaying()
-				activeBar = this
-			},
-			// 被其他条抢占时停掉自己(保留进度显示)
-			stopPlaying() {
-				if (this.audio) this.audio.pause()
-				this.playing = false
-			},
-			storedRate() {
-				const r = Number(uni.getStorageSync('ti_play_rate'))
-				return r > 0 ? r : 1.0
-			},
 			// 点击轨道: 跳转到点击位置
 			onTrackTap(e) {
 				// 拖动结束后的合成点击不重复处理
@@ -164,30 +126,10 @@
 				const ratio = Math.min(Math.max((clientX - this.rect.left) / this.rect.width, 0), 1)
 				const d = this.totalDuration
 				if (!d) return
-				const target = ratio * d
-				this.current = target
-				const audio = this.ensureAudio()
-				audio.seek(target)
-				// 未在播放: 跳转后自动开始播放(并停掉其他条)
-				if (!this.playing) {
-					this.claimPlayback()
-					audio.playbackRate = this.storedRate()
-					audio.play()
-					this.playing = true
-				}
+				seekVoiceUrl(this.src, ratio * d)
 			},
 			toggle() {
-				if (!this.src) return
-				if (this.playing) {
-					this.audio.pause()
-					this.playing = false
-					return
-				}
-				this.claimPlayback()
-				const audio = this.ensureAudio()
-				audio.playbackRate = this.storedRate()
-				audio.play()
-				this.playing = true
+				toggleVoiceUrl(this.src)
 			},
 			fmt(s) {
 				if (!s || s < 0) s = 0

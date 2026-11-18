@@ -3,6 +3,7 @@
  * App 端使用 plus.sqlite(SQLite),小程序/H5 端降级为 storage JSON 存储
  * 数据表依据 PRD 3.6 核心数据模型
  */
+import { DEFAULT_HL_LEVEL, levelOf } from './highlight'
 
 const DB_NAME = 'timeimprint'
 const STORE_PREFIX = 'ti_db_'
@@ -10,7 +11,7 @@ const STORE_PREFIX = 'ti_db_'
 // 建表语句(App 端 SQLite)
 const TABLE_SQLS = [
 	`CREATE TABLE IF NOT EXISTS user (userId TEXT PRIMARY KEY, nickname TEXT, avatar TEXT, birthDate TEXT, gender TEXT, status TEXT, createdAt INTEGER, updatedAt INTEGER)`,
-	`CREATE TABLE IF NOT EXISTS memory (memoryId TEXT PRIMARY KEY, userId TEXT, eventDate TEXT, title TEXT, content TEXT, emotion TEXT, lifeStage TEXT, isHighlight INTEGER DEFAULT 0, isFavorite INTEGER DEFAULT 0, isArchived INTEGER DEFAULT 0, createdAt INTEGER, updatedAt INTEGER)`,
+	`CREATE TABLE IF NOT EXISTS memory (memoryId TEXT PRIMARY KEY, userId TEXT, eventDate TEXT, title TEXT, content TEXT, emotion TEXT, lifeStage TEXT, isHighlight INTEGER DEFAULT 0, highlightLevel INTEGER DEFAULT 3, isFavorite INTEGER DEFAULT 0, isArchived INTEGER DEFAULT 0, createdAt INTEGER, updatedAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS media (mediaId TEXT PRIMARY KEY, memoryId TEXT, type TEXT, url TEXT, thumbnailUrl TEXT, duration REAL, sort INTEGER, createdAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS highlight (highlightId TEXT PRIMARY KEY, userId TEXT, memoryId TEXT, highlightTitle TEXT, createdAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS growth_comparison (comparisonId TEXT PRIMARY KEY, userId TEXT, firstDate TEXT, secondDate TEXT, summary TEXT, createdAt INTEGER)`
@@ -93,9 +94,12 @@ export async function initDB() {
 			})
 		})
 		for (const sql of TABLE_SQLS) await appExec(sql)
-		// 旧库升级: 补建收藏字段(字段已存在时报错, 忽略即可)
+		// 旧库升级: 补建收藏/高光星数字段(字段已存在时报错, 忽略即可)
 		try {
 			await appExec('ALTER TABLE memory ADD COLUMN isFavorite INTEGER DEFAULT 0')
+		} catch (e) {}
+		try {
+			await appExec('ALTER TABLE memory ADD COLUMN highlightLevel INTEGER DEFAULT 3')
 		} catch (e) {}
 	}
 }
@@ -168,6 +172,7 @@ export async function addMemory(data) {
 		emotion: '',
 		lifeStage: '',
 		isHighlight: 0,
+		highlightLevel: DEFAULT_HL_LEVEL,
 		isFavorite: 0,
 		isArchived: 0,
 		createdAt: now,
@@ -299,11 +304,15 @@ export async function deleteMedia(mediaId) {
 
 /* ==================== 高光 ==================== */
 /**
- * 标记/取消高光:同步 memory.isHighlight 与 highlight 子表
+ * 标记/取消高光:同步 memory.isHighlight/highlightLevel 与 highlight 子表
+ * @param {Number} [level] 星级(1~5): 开启时显式传入优先, 未传沿用已存星级, 再兜底默认档;
+ *                         取消时只关开关不清星级, 重新开启可恢复
  */
-export async function setHighlight(memoryId, on, title) {
-	await dbUpdate('memory', { isHighlight: on ? 1 : 0, updatedAt: Date.now() }, 'memoryId', memoryId)
+export async function setHighlight(memoryId, on, title, level) {
 	if (on) {
+		const rows = await dbSelect('memory', `memoryId=${esc(memoryId)}`)
+		const lv = level ? levelOf({ highlightLevel: level }) : levelOf(rows[0] || {})
+		await dbUpdate('memory', { isHighlight: 1, highlightLevel: lv, updatedAt: Date.now() }, 'memoryId', memoryId)
 		const exists = await dbSelect('highlight', `memoryId=${esc(memoryId)}`)
 		if (!exists.length) {
 			await dbInsert('highlight', {
@@ -314,10 +323,11 @@ export async function setHighlight(memoryId, on, title) {
 				createdAt: Date.now()
 			})
 		}
-		} else {
-			await dbDelete('highlight', 'memoryId', memoryId)
-		}
+	} else {
+		await dbUpdate('memory', { isHighlight: 0, updatedAt: Date.now() }, 'memoryId', memoryId)
+		await dbDelete('highlight', 'memoryId', memoryId)
 	}
+}
 
 	/* ==================== 收藏 ==================== */
 	/**

@@ -114,6 +114,11 @@
 			<switch :checked="isHighlight" color="#4F8B8B" @change="e => (isHighlight = e.detail.value)" />
 		</view>
 
+		<!-- 高光星数: 开启高光后手动选 1~5 星 -->
+		<view v-if="isHighlight">
+			<star-rate v-model:level="highlightLevel" />
+		</view>
+
 		<!-- 保存 -->
 		<view class="mf-save ti-btn" @click="save">保存印记</view>
 
@@ -155,6 +160,7 @@
 	import { chooseImages, chooseVideoMedia, chooseAudio, persistFile, startRecord, removeFile } from '../../utils/media'
 	import { fmtCN, today } from '../../utils/date'
 	import { STAGES, UNBORN_STAGE, FUTURE_STAGE, emotionOf, stageOfEvent, stageLabelOf } from '../../utils/stage'
+	import { levelOf } from '../../utils/highlight'
 	import { store, loadUser } from '../../store'
 
 	// 视频入口的文件类型白名单: 部分平台文件选择器不过滤类型, 会选到 .mp3 等音频文件
@@ -178,6 +184,7 @@
 				stage: '',
 				stageManual: false,
 				isHighlight: false,
+				highlightLevel: 3,
 				recording: false,
 				recordHandle: null,
 				recordSeconds: 0,
@@ -245,6 +252,7 @@
 				this.stage = stageLabelOf(store.user && store.user.birthDate, m.eventDate, m.lifeStage)
 				this.stageManual = true
 				this.isHighlight = !!m.isHighlight
+				this.highlightLevel = levelOf(m)
 				this.images = m.medias.filter(x => x.type === 'image').map(x => x.url)
 				const videoList = m.medias.filter(x => x.type === 'video')
 				this.videos = videoList.map(x => ({ url: x.url, duration: x.duration || 0, thumb: x.thumbnailUrl || '' }))
@@ -418,9 +426,8 @@
 						}
 					}
 
-					// 标题优先取填写值, 未填时默认取正文首行
-					const firstLine = (this.content.trim().split('\n')[0] || '').slice(0, 20)
-					const title = (this.title || '').trim().slice(0, 20) || firstLine
+					// 标题只取填写值, 未填时留空, 不复制正文(避免标题与正文重复展示)
+					const title = (this.title || '').trim().slice(0, 20)
 
 					const data = {
 						eventDate: this.eventDate,
@@ -462,7 +469,7 @@
 						const url = isExisting(v.url) ? v.url : await persistFile(v.url, (em ? em[1] : 'mp3').toLowerCase())
 						await addMedia({ memoryId, type: 'voice', url, duration: v.duration || 0, sort: sort++ })
 					}
-					await setHighlight(memoryId, this.isHighlight, title)
+					await setHighlight(memoryId, this.isHighlight, title, this.highlightLevel)
 
 					uni.hideLoading()
 					uni.showToast({ title: '已保存', icon: 'success' })
@@ -490,6 +497,7 @@
 				this.stage = ''
 				this.stageManual = false
 				this.isHighlight = false
+				this.highlightLevel = 3
 				this.autoDetectStage()
 			}
 		}
