@@ -3,3 +3,8 @@ unpackage/
 .hbuilderx/
 docs/
 .zcode/
+
+# 签名密钥与本地凭证, 严禁入库
+key/
+*.jks
+*.keystore
