@@ -14,6 +14,7 @@ const TABLE_SQLS = [
 	`CREATE TABLE IF NOT EXISTS memory (memoryId TEXT PRIMARY KEY, userId TEXT, eventDate TEXT, title TEXT, content TEXT, emotion TEXT, lifeStage TEXT, isHighlight INTEGER DEFAULT 0, highlightLevel INTEGER DEFAULT 3, isFavorite INTEGER DEFAULT 0, isArchived INTEGER DEFAULT 0, createdAt INTEGER, updatedAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS media (mediaId TEXT PRIMARY KEY, memoryId TEXT, type TEXT, url TEXT, thumbnailUrl TEXT, duration REAL, sort INTEGER, createdAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS highlight (highlightId TEXT PRIMARY KEY, userId TEXT, memoryId TEXT, highlightTitle TEXT, createdAt INTEGER)`,
+	`CREATE TABLE IF NOT EXISTS photo_card (cardId TEXT PRIMARY KEY, memoryId TEXT, template TEXT, layout TEXT, title TEXT, caption TEXT, eventDate TEXT, level INTEGER DEFAULT 3, images TEXT, meta TEXT, createdAt INTEGER, updatedAt INTEGER)`,
 	`CREATE TABLE IF NOT EXISTS growth_comparison (comparisonId TEXT PRIMARY KEY, userId TEXT, firstDate TEXT, secondDate TEXT, summary TEXT, createdAt INTEGER)`
 ]
 
@@ -100,6 +101,10 @@ export async function initDB() {
 		} catch (e) {}
 		try {
 			await appExec('ALTER TABLE memory ADD COLUMN highlightLevel INTEGER DEFAULT 3')
+		} catch (e) {}
+		// 旧库升级: 纪念照增加落款位置(meta), 表已存在但缺列时补齐
+		try {
+			await appExec('ALTER TABLE photo_card ADD COLUMN meta TEXT')
 		} catch (e) {}
 	}
 }
@@ -329,13 +334,90 @@ export async function setHighlight(memoryId, on, title, level) {
 	}
 }
 
-	/* ==================== 收藏 ==================== */
-	/**
-	 * 标记/取消收藏(独立于高光)
-	 */
-	export async function setFavorite(memoryId, on) {
-		await dbUpdate('memory', { isFavorite: on ? 1 : 0, updatedAt: Date.now() }, 'memoryId', memoryId)
+/* ==================== 收藏 ==================== */
+/**
+ * 标记/取消收藏(独立于高光)
+ */
+export async function setFavorite(memoryId, on) {
+	await dbUpdate('memory', { isFavorite: on ? 1 : 0, updatedAt: Date.now() }, 'memoryId', memoryId)
+}
+
+/* ==================== 高光纪念册 ==================== */
+// images / meta 统一以 JSON 字符串落库(SQLite 无对象类型), 读取时还原
+function parseCard(row) {
+	if (!row) return null
+	let images = []
+	let meta = {}
+	try {
+		images = Array.isArray(row.images) ? row.images : JSON.parse(row.images || '[]')
+	} catch (e) {
+		images = []
 	}
+	try {
+		meta = row.meta && typeof row.meta === 'object' ? row.meta : JSON.parse(row.meta || '{}')
+	} catch (e) {
+		meta = {}
+	}
+	return Object.assign({}, row, { images, meta })
+}
+
+export async function addPhotoCard(data) {
+	const now = Date.now()
+	const c = Object.assign({
+		cardId: genId(),
+		memoryId: '',
+		template: 'polaroid',
+		layout: 'auto',
+		title: '',
+		caption: '',
+		eventDate: '',
+		level: DEFAULT_HL_LEVEL,
+		images: [],
+		meta: {}
+	}, data)
+	const row = Object.assign({}, c, {
+		images: JSON.stringify(c.images || []),
+		meta: JSON.stringify(c.meta || {}),
+		createdAt: now,
+		updatedAt: now
+	})
+	await dbInsert('photo_card', row)
+	return parseCard(row)
+}
+
+export async function updatePhotoCard(cardId, data) {
+	const patch = Object.assign({}, data)
+	if (patch.images) patch.images = JSON.stringify(patch.images)
+	if (patch.meta) patch.meta = JSON.stringify(patch.meta)
+	patch.updatedAt = Date.now()
+	await dbUpdate('photo_card', patch, 'cardId', cardId)
+}
+
+export async function deletePhotoCard(cardId) {
+	await dbDelete('photo_card', 'cardId', cardId)
+}
+
+export async function getPhotoCard(cardId) {
+	const rows = await dbSelect('photo_card', `cardId=${esc(cardId)}`)
+	return rows.length ? parseCard(rows[0]) : null
+}
+
+/**
+ * 全部纪念照, 按发生日期倒序(年度分册在前端做)
+ */
+export async function listPhotoCards() {
+	let rows
+	if (IS_APP) {
+		rows = await appSelect('SELECT * FROM photo_card ORDER BY eventDate DESC, createdAt DESC')
+	} else {
+		rows = loadTable('photo_card')
+		rows.sort((a, b) =>
+			(b.eventDate || '').localeCompare(a.eventDate || '') ||
+			(b.createdAt || 0) - (a.createdAt || 0)
+		)
+	}
+	return rows.map(parseCard)
+}
 
 	/* ==================== 成长对比 ==================== */
 export async function addComparison(data) {
@@ -389,6 +471,7 @@ export async function exportAll() {
 		memories: loadAllMemoriesRaw(),
 		medias: await dbSelect('media'),
 		highlights: await dbSelect('highlight'),
+		photoCards: await dbSelect('photo_card'),
 		comparisons: await dbSelect('growth_comparison')
 	}
 }
@@ -405,12 +488,13 @@ function loadAllMemoriesRaw() {
 export async function importAll(data) {
 	// 恢复备份:整表覆盖
 	if (!data || !data.memories) throw new Error('备份文件格式不正确')
-	const tables = ['user', 'memory', 'media', 'highlight', 'growth_comparison']
+	const tables = ['user', 'memory', 'media', 'highlight', 'photo_card', 'growth_comparison']
 	const payloads = {
 		user: data.user ? [data.user] : [],
 		memory: data.memories || [],
 		media: data.medias || [],
 		highlight: data.highlights || [],
+		photo_card: data.photoCards || [],
 		growth_comparison: data.comparisons || []
 	}
 	if (IS_APP) {
@@ -424,7 +508,7 @@ export async function importAll(data) {
 }
 
 export async function clearAll() {
-	const tables = ['user', 'memory', 'media', 'highlight', 'growth_comparison']
+	const tables = ['user', 'memory', 'media', 'highlight', 'photo_card', 'growth_comparison']
 	if (IS_APP) {
 		for (const t of tables) await appExec(`DELETE FROM ${t}`)
 	} else {

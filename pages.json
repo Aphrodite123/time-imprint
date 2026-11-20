@@ -75,6 +75,24 @@
 			}
 		},
 		{
+			"path": "pages/archive/album",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/album-detail",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/archive/album-create",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
 			"path": "pages/archive/compare",
 			"style": {
 				"navigationStyle": "custom"

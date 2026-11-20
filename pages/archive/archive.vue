@@ -66,6 +66,23 @@
 			</view>
 		</view>
 
+		<!-- 高光纪念册入口 -->
+		<view class="ar-album" @click="goAlbum">
+			<view class="ar-album-thumbs">
+				<block v-for="(u, i) in albumThumbs" :key="i">
+					<image v-if="u" :src="u" mode="aspectFill" class="ar-album-thumb" />
+					<view v-else class="ar-album-thumb blank"></view>
+				</block>
+			</view>
+			<view class="ar-album-info">
+				<text class="ar-album-title">高光纪念册</text>
+				<text class="ar-album-sub">把高光时刻，装订成册</text>
+				<text class="ar-album-meta">{{ albumMeta }}</text>
+			</view>
+			<text v-if="albumCardCount" class="ar-album-new">NEW</text>
+			<text class="ar-album-arrow">›</text>
+		</view>
+
 		<!-- 功能入口卡片组 -->
 		<view class="ar-entries">
 			<view class="ar-entry" @click="go('/pages/archive/stage')">
@@ -104,7 +121,8 @@
 
 <script>
 	// 成长档案馆:快照统计 + 情绪图表 + 功能入口(需求 2.5)
-	import { getStats, listMemories } from '../../utils/db'
+	import { getStats, listMemories, listPhotoCards } from '../../utils/db'
+	import { groupByYear } from '../../utils/album'
 	import { EMOTIONS } from '../../utils/stage'
 	import { today } from '../../utils/date'
 
@@ -120,10 +138,17 @@
 		data() {
 			return {
 				stats: { total: 0, images: 0, voices: 0, emotions: {} },
-				currentEmotion: '' // 当前情绪状态(今天最新一条带情绪的印记), 无则不画状态圆点
+				currentEmotion: '', // 当前情绪状态(今天最新一条带情绪的印记), 无则不画状态圆点
+				albumCardCount: 0,
+				albumCount: 0,
+				albumThumbs: ['', '', '']
 			}
 		},
 		computed: {
+			albumMeta() {
+				if (!this.albumCardCount) return '还没有纪念照 · 去做第一张'
+				return `${this.albumCardCount} 张纪念照 · ${this.albumCount} 册`
+			},
 			emotionCount() {
 				return Object.values(this.stats.emotions).reduce((s, n) => s + n, 0)
 			},
@@ -143,7 +168,22 @@
 			async load() {
 				this.stats = await getStats()
 				this.currentEmotion = await this.latestEmotion()
+				await this.loadAlbum()
 				this.$nextTick(() => this.drawChart())
+			},
+			// 纪念册入口数据: 总张数、册数、封面缩略图
+			async loadAlbum() {
+				const cards = await listPhotoCards()
+				const albums = groupByYear(cards)
+				this.albumCardCount = cards.length
+				this.albumCount = albums.length
+				this.albumThumbs = [0, 1, 2].map(i => {
+					const a = albums[i]
+					return a && a.cover && a.cover.images && a.cover.images[0] ? a.cover.images[0] : ''
+				})
+			},
+			goAlbum() {
+				uni.navigateTo({ url: '/pages/archive/album' })
 			},
 			// 当前情绪状态: 今天最新一条带情绪的印记; 今天没有则无当前状态(圆点不显示)
 			async latestEmotion() {
@@ -349,6 +389,120 @@
 		font-size: 28rpx;
 		font-weight: 700;
 		color: $ti-text-2;
+	}
+
+	/* 高光纪念册入口 */
+	.ar-album {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 24rpx;
+		margin: 36rpx $page-pad 0;
+		background: $ti-card;
+		border-radius: 40rpx;
+		padding: 26rpx 28rpx;
+		box-shadow: $shadow-card;
+		overflow: hidden;
+	}
+	.ar-album::after {
+		content: "";
+		position: absolute;
+		right: -60rpx;
+		top: -60rpx;
+		width: 200rpx;
+		height: 200rpx;
+		border-radius: 50%;
+		background: $ti-accent-light;
+		opacity: 0.55;
+	}
+	.ar-album-thumbs {
+		position: relative;
+		width: 124rpx;
+		height: 140rpx;
+		flex: 0 0 124rpx;
+	}
+	.ar-album-thumb {
+		position: absolute;
+		width: 88rpx;
+		height: 112rpx;
+		border-radius: 12rpx;
+		border: 4rpx solid #FFFFFF;
+		box-shadow: 0 6rpx 16rpx rgba(27, 59, 87, 0.2);
+		box-sizing: border-box;
+	}
+	.ar-album-thumb:nth-child(1) {
+		left: 0;
+		top: 16rpx;
+		transform: rotate(-9deg);
+	}
+	.ar-album-thumb:nth-child(2) {
+		left: 22rpx;
+		top: 8rpx;
+		transform: rotate(4deg);
+	}
+	.ar-album-thumb:nth-child(3) {
+		left: 44rpx;
+		top: 18rpx;
+		transform: rotate(11deg);
+	}
+	/* 空状态: 粉/绿/蓝三张彩色拍立得, 对应高保真插画 */
+	.ar-album-thumb.blank:nth-child(1) {
+		background: linear-gradient(160deg, #F8D8D0, #EAA9A0);
+	}
+	.ar-album-thumb.blank:nth-child(2) {
+		background: linear-gradient(160deg, #D3E7D2, #93C29B);
+	}
+	.ar-album-thumb.blank:nth-child(3) {
+		background: linear-gradient(160deg, #CCD9EA, #93AFCE);
+	}
+	.ar-album-info {
+		flex: 1;
+		min-width: 0;
+		position: relative;
+		z-index: 2;
+	}
+	.ar-album-title {
+		display: block;
+		font-size: 32rpx;
+		font-weight: 800;
+		color: $ti-navy;
+		letter-spacing: 1rpx;
+	}
+	.ar-album-sub {
+		display: block;
+		margin-top: 8rpx;
+		font-size: 22rpx;
+		color: $ti-text-3;
+	}
+	.ar-album-meta {
+		display: inline-block;
+		margin-top: 14rpx;
+		font-size: 20rpx;
+		font-weight: 700;
+		color: $ti-primary-deep;
+		background: $ti-primary-mist;
+		border-radius: 999rpx;
+		padding: 6rpx 18rpx;
+	}
+	.ar-album-new {
+		position: absolute;
+		right: 24rpx;
+		top: 22rpx;
+		font-size: 18rpx;
+		font-weight: 800;
+		letter-spacing: 2rpx;
+		color: #FFFFFF;
+		background: $ti-accent;
+		border-radius: 999rpx;
+		padding: 4rpx 14rpx;
+		z-index: 2;
+	}
+	.ar-album-arrow {
+		position: relative;
+		z-index: 2;
+		font-size: 34rpx;
+		color: $ti-primary;
+		padding-right: 4rpx;
 	}
 
 	/* 功能入口 */

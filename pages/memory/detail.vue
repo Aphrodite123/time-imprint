@@ -35,6 +35,15 @@
 					<voice-bar v-for="(v, i) in voices" :key="i" :src="v.url" :duration="v.duration" class="dt-voice" />
 			</view>
 
+			<!-- 做成纪念照: 进入高光纪念册创作 -->
+			<view class="dt-make" @click="makeCard">
+				<view class="dt-make-left">
+					<text class="dt-make-title">做成纪念照</text>
+					<text class="dt-make-sub">装进按年份成册的高光纪念册</text>
+				</view>
+				<text class="dt-make-arrow">›</text>
+			</view>
+
 			<!-- 操作按钮 -->
 			<view class="dt-actions">
 				<view class="dt-btn outline" @click="goEdit">编 辑</view>
@@ -109,6 +118,9 @@
 			},
 			goEdit() {
 				uni.navigateTo({ url: '/pages/memory/edit?id=' + this.id })
+			},
+			makeCard() {
+				uni.navigateTo({ url: '/pages/archive/album-create?memoryId=' + this.id })
 			},
 			onDelete() {
 				uni.showModal({
@@ -250,6 +262,35 @@
 		gap: 28rpx;
 		margin-top: 40rpx;
 		padding: 0 4rpx;
+	}
+	.dt-make {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 32rpx;
+		padding: 26rpx 34rpx;
+		border-radius: 999rpx;
+		background: $ti-accent-light;
+		box-shadow: 0 8rpx 20rpx rgba(240, 153, 90, 0.16);
+	}
+	.dt-make-title {
+		font-size: 28rpx;
+		font-weight: 800;
+		color: #B4692E;
+		letter-spacing: 1rpx;
+	}
+	.dt-make-sub {
+		font-size: 21rpx;
+		color: #B98A5E;
+		margin-top: 4rpx;
+	}
+	.dt-make-left {
+		display: flex;
+		flex-direction: column;
+	}
+	.dt-make-arrow {
+		font-size: 34rpx;
+		color: #C9955F;
 	}
 	.dt-btn {
 		flex: 1;

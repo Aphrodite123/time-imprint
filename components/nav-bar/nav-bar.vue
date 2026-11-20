@@ -45,6 +45,7 @@
 			title: { type: String, default: '' },
 			subtitle: { type: String, default: '' }, // 标题下方居中的灰色副标题
 			back: { type: Boolean, default: true },
+			backAuto: { type: Boolean, default: true }, // false 时只抛 back 事件, 由页面接管返回逻辑
 			accent: { type: Boolean, default: false } // 标题下橙色短划线点缀(详情页样式)
 		},
 		data() {
@@ -122,6 +123,8 @@
 		},
 		methods: {
 			onBack() {
+				this.$emit('back')
+				if (!this.backAuto) return
 				const pages = getCurrentPages()
 				if (pages.length > 1) {
 					uni.navigateBack()

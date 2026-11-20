@@ -27,6 +27,11 @@
 						<text v-for="i in maxLevel" :key="i" :class="['hl-feat-star', i <= featLevel ? 'on' : '']">★</text>
 					</view>
 				</view>
+				<!-- 做成纪念照: 预填照片/日期/标题/星级 -->
+				<view class="hl-feat-cta" @click.stop="makeCard(featured)">
+					<text>把这一刻做成纪念照</text>
+					<text class="hl-cta-arrow">›</text>
+				</view>
 			</view>
 
 			<!-- 更多高光 -->
@@ -126,6 +131,11 @@
 			goDetail(m) {
 				uni.navigateTo({ url: '/pages/memory/detail?id=' + m.memoryId })
 			},
+			// 做成纪念照: 带上印记, 由创建页预填照片/日期/标题/星级
+			makeCard(m) {
+				if (!m) return
+				uni.navigateTo({ url: '/pages/archive/album-create?memoryId=' + m.memoryId })
+			},
 			// 手动调整高光星数(1~5 星, 调整后按新星级重排精选)
 			adjustLevel(m) {
 				uni.showActionSheet({
@@ -140,11 +150,15 @@
 			},
 			onLongpress(m) {
 				uni.showActionSheet({
-					itemList: ['编辑', '删除', '调整星数', '取消高光'],
+					itemList: ['编辑', '做成纪念照', '调整星数', '删除', '取消高光'],
 					success: async r => {
 						if (r.tapIndex === 0) {
 							uni.navigateTo({ url: '/pages/memory/edit?id=' + m.memoryId })
 						} else if (r.tapIndex === 1) {
+							this.makeCard(m)
+						} else if (r.tapIndex === 2) {
+							this.adjustLevel(m)
+						} else if (r.tapIndex === 3) {
 							uni.showModal({
 								title: '删除这条印记?',
 								content: '删除后无法恢复',
@@ -250,6 +264,24 @@
 		&.on {
 			color: $ti-accent;
 		}
+	}
+	.hl-feat-cta {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10rpx;
+		height: 76rpx;
+		margin-top: 24rpx;
+		border-radius: 999rpx;
+		background: $ti-accent-light;
+		color: $ti-accent-deep;
+		font-size: 25rpx;
+		font-weight: 800;
+		letter-spacing: 1rpx;
+	}
+	.hl-cta-arrow {
+		font-size: 30rpx;
+		line-height: 1;
 	}
 
 	/* 更多高光 */
